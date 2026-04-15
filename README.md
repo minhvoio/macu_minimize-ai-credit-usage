@@ -1,36 +1,40 @@
 # macu — Minimize AI Credit Usage
 
-**A CLI tool that finds MCP tools and plugins you're paying for but never use, so you can delete them and cut ~30-60% of your AI context overhead.**
+## My story
 
----
+I was paying for Claude Code and burning through my 5-hour limit way faster than I could explain.
 
-## What it does
+I'd open a new session, send a few messages, ask Claude to help me with one task — and somehow I was already at 40% of my window. It didn't match the work I was actually doing.
 
-When you chat with Claude Code, OpenCode, or Codex, **every single message includes the full definition of every MCP tool and plugin you have installed** — whether you use them or not. Each tool definition costs ~300 tokens. With 95 tools installed, that's **~28,000 tokens burned per message before you even type a word.**
+So I pulled my usage data. 50 days. 830 sessions. **33,000 tool calls.** And I found it.
 
-`macu` reads your actual usage history, counts which tools you've called vs ignored, and tells your AI agent exactly what to remove. Same AI plan, fewer wasted tokens, longer sessions, lower bills.
+Every single message I sent was carrying **95 MCP tool definitions** in the request body. Linear. Slack. LSP. Custom plugins I'd installed months ago and forgotten. All 95 of them, loaded fresh into the context on every single request.
 
-## Who is this for
+But when I counted what I actually used? **35 tools.** The other 60 were dead weight — adding ~9,000 tokens of overhead to every message before I even typed a word.
 
-- You use **Claude Code** (Pro, Team, or API) and want more out of your token/credit limits
-- You've installed **MCP servers or plugins** (Linear, Slack, GitHub, LSP tools, custom ones) and suspect most are unused
-- You use **OpenCode or Codex** with multiple plugins configured
-- You hit the 5-hour limit faster than you'd expect given what you're actually doing
+**That was 32% of my input budget, gone, forever, on tools I never called.**
 
-If you have zero MCP plugins installed, this tool has nothing to optimize.
+Over the full 50 days that came out to roughly **465 million wasted tokens.** On one account.
 
-## How it saves you money
+So I built `macu` to find this waste in anyone's setup and make it easy to clean up.
 
-```
-Before macu:  95 tools × 300 tokens = 28,500 tokens of overhead per message
-After macu:   33 tools × 300 tokens =  9,900 tokens of overhead per message
-                                    ─────────────────────────────────────
-                                    You save ~18,600 tokens/message (65%)
-```
+## What `macu` does
 
-Over 830 sessions and 25,000 messages in 50 days, that was **~465 million tokens** of wasted overhead on my own account.
+It reads your actual tool-call history from Claude Code, OpenCode, or Codex — then shows you:
 
-`macu` doesn't compress your messages or change how AI works. It just identifies dead-weight tool definitions that ship with every API request and helps you remove them.
+- Which tools you actually use (the 35 that earn their keep)
+- Which tools are silent overhead (the 60 costing you money for nothing)
+- A copy-pasteable action plan your AI agent can execute in the same session
+
+Same AI. Same workflow. Just without the dead weight in every request.
+
+## Who should use it
+
+- You use **Claude Code**, **OpenCode**, or **Codex**
+- You've installed MCP servers or plugins over time (Linear, Slack, GitHub, LSP, custom ones)
+- You feel like you hit rate limits faster than the work you're doing justifies
+
+If you have zero MCP plugins installed, this tool has nothing to find.
 
 ---
 
