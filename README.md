@@ -12,6 +12,21 @@ Install. Run `macu`. Done.
 
 ## Installation
 
+### For LLM Agents
+
+Paste this prompt to your agent (Claude Code, OpenCode, Codex, Cursor, etc.):
+
+```
+Install and configure macu by following the instructions here:
+https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/docs/guide/installation.md
+```
+
+Or fetch the guide directly:
+
+```bash
+curl -s https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/docs/guide/installation.md
+```
+
 ### For Humans
 
 Copy and paste this into your terminal:
@@ -24,21 +39,6 @@ Or install manually:
 
 ```bash
 npm install -g macu
-```
-
-### For LLM Agents
-
-Paste this prompt to your agent (Claude Code, OpenCode, Codex, Cursor, etc.):
-
-```
-Install and configure macu by following the instructions here:
-https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/docs/guide/installation.md
-```
-
-Or fetch it directly:
-
-```bash
-curl -s https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/docs/guide/installation.md
 ```
 
 ---
