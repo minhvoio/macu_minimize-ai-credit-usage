@@ -16,6 +16,13 @@ But when I counted what I actually used? **35 tools.** The other 60 were dead we
 
 Over the full 50 days that came out to roughly **465 million wasted tokens.** On one account.
 
+If I had been paying API rates for that overhead, the bill would have been:
+
+- **~$1,395** at Claude Sonnet input pricing ($3 / million tokens)
+- **~$6,975** at Claude Opus input pricing ($15 / million tokens)
+
+On a subscription it doesn't hit your credit card directly — but it IS the reason your plan's window feels smaller than it should. You're shipping $1,000+ of worthless tool definitions inside every plan cycle.
+
 So I built `macu` to find this waste in anyone's setup and make it easy to clean up.
 
 ## What `macu` does
