@@ -1,12 +1,36 @@
 # macu — Minimize AI Credit Usage
 
-> Every AI message you send ships **all** tool definitions in the request body.
-> 95 MCP tools = **~28,000 tokens of overhead per request** — before you type a single word.
-> That's **32% of your input budget** burned on tools you never touch.
+**A CLI tool that finds MCP tools and plugins you're paying for but never use, so you can delete them and cut ~30-60% of your AI context overhead.**
 
-We found the waste. Built the tool. Cut it in half.
+---
 
-**Run `macu` inside your AI session.** The agent analyzes your usage, identifies waste, edits your configs, and verifies the savings — all in one loop.
+## What it does
+
+When you chat with Claude Code, OpenCode, or Codex, **every single message includes the full definition of every MCP tool and plugin you have installed** — whether you use them or not. Each tool definition costs ~300 tokens. With 95 tools installed, that's **~28,000 tokens burned per message before you even type a word.**
+
+`macu` reads your actual usage history, counts which tools you've called vs ignored, and tells your AI agent exactly what to remove. Same AI plan, fewer wasted tokens, longer sessions, lower bills.
+
+## Who is this for
+
+- You use **Claude Code** (Pro, Team, or API) and want more out of your token/credit limits
+- You've installed **MCP servers or plugins** (Linear, Slack, GitHub, LSP tools, custom ones) and suspect most are unused
+- You use **OpenCode or Codex** with multiple plugins configured
+- You hit the 5-hour limit faster than you'd expect given what you're actually doing
+
+If you have zero MCP plugins installed, this tool has nothing to optimize.
+
+## How it saves you money
+
+```
+Before macu:  95 tools × 300 tokens = 28,500 tokens of overhead per message
+After macu:   33 tools × 300 tokens =  9,900 tokens of overhead per message
+                                    ─────────────────────────────────────
+                                    You save ~18,600 tokens/message (65%)
+```
+
+Over 830 sessions and 25,000 messages in 50 days, that was **~465 million tokens** of wasted overhead on my own account.
+
+`macu` doesn't compress your messages or change how AI works. It just identifies dead-weight tool definitions that ship with every API request and helps you remove them.
 
 ---
 

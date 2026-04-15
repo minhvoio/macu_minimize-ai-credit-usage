@@ -22,13 +22,17 @@ export function render(result, sourceNames) {
 // ── Header ────────────────────────────────────────────────
 
 function renderHeader() {
-  const border = chalk.dim('─'.repeat(56));
+  const border = chalk.dim('─'.repeat(60));
   console.log(border);
   console.log(
     chalk.bold.cyan('  macu') +
     chalk.dim(' — Minimize AI Credit Usage')
   );
   console.log(border);
+  console.log('');
+  console.log(chalk.dim('  How it works: every message to your AI loads ALL configured'));
+  console.log(chalk.dim('  tool definitions (~300 tokens each). Tools you never call are'));
+  console.log(chalk.dim('  silent overhead — macu finds them so you can remove them.'));
   console.log('');
 }
 
@@ -207,35 +211,34 @@ function renderSavingsChart(result) {
     return;
   }
 
-  sectionHeader('Token Savings: Before vs After');
+  sectionHeader('Projected Token Overhead');
+
+  console.log(chalk.dim('  How much of your context budget is spent just loading tool definitions:'));
+  console.log('');
 
   const maxTokens = overhead.before.tokensPerMsg;
   const scale = BAR_WIDTH / maxTokens;
-
   const beforeLen = Math.round(overhead.before.tokensPerMsg * scale);
   const afterLen = Math.round(overhead.after.tokensPerMsg * scale);
-  const savingsLen = Math.round(overhead.savingsPerMsg * scale);
 
   const beforeBar = chalk.red('█'.repeat(beforeLen)) + chalk.dim('░'.repeat(BAR_WIDTH - beforeLen));
   const afterBar = chalk.green('█'.repeat(afterLen)) + chalk.dim('░'.repeat(BAR_WIDTH - afterLen));
-  const savingsBar = chalk.cyan('█'.repeat(savingsLen)) + chalk.dim('░'.repeat(BAR_WIDTH - savingsLen));
 
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
 
-  console.log(chalk.dim('  Tool definitions per request:'));
+  console.log(`  ${chalk.dim('Now      ')} ${beforeBar}  ${chalk.red(fmt(overhead.before.tokensPerMsg))} tok ${chalk.dim(`— ${overhead.before.tools} tools loaded`)}`);
+  console.log(`  ${chalk.dim('Optimized')} ${afterBar}  ${chalk.green(fmt(overhead.after.tokensPerMsg))} tok ${chalk.dim(`— ${overhead.after.tools} tools loaded`)}`);
   console.log('');
-  console.log(`  ${chalk.dim('Before')}   ${beforeBar}  ${chalk.red(fmt(overhead.before.tokensPerMsg))} tok ${chalk.dim(`(${overhead.before.tools} tools)`)}`);
-  console.log(`  ${chalk.dim('After')}    ${afterBar}  ${chalk.green(fmt(overhead.after.tokensPerMsg))} tok ${chalk.dim(`(${overhead.after.tools} tools)`)}`);
-  console.log(`  ${chalk.dim('Savings')}  ${savingsBar}  ${chalk.cyan(fmt(overhead.savingsPerMsg))} tok ${chalk.bold.cyan(`(${pct}%)`)}`);
+  console.log(`  ${chalk.bold.cyan('→ You would save ')}${chalk.bold.cyan(fmt(overhead.savingsPerMsg) + ' tokens per message')} ${chalk.bold.cyan(`(${pct}% reduction)`)}`);
   console.log('');
 
   if (result.totalMessages > 0) {
-    console.log(chalk.dim(`  Over ${fmt(result.totalMessages)} messages in ${result.spanDays} days:`));
-    console.log(`  Estimated total savings: ${chalk.bold.cyan(fmt(overhead.totalSavings) + ' tokens')}`);
     const tokensPerM = 1_000_000;
-    if (overhead.totalSavings > tokensPerM) {
-      console.log(`                          ${chalk.dim(`≈ ${(overhead.totalSavings / tokensPerM).toFixed(1)}M tokens`)}`);
-    }
+    const totalStr = overhead.totalSavings > tokensPerM
+      ? `${fmt(overhead.totalSavings)} tokens (≈ ${(overhead.totalSavings / tokensPerM).toFixed(1)}M)`
+      : `${fmt(overhead.totalSavings)} tokens`;
+    console.log(chalk.dim(`  Applied retroactively to your ${fmt(result.totalMessages)} messages over ${result.spanDays} days,`));
+    console.log(chalk.dim(`  this would have saved ~`) + chalk.white(totalStr) + chalk.dim('.'));
   }
   console.log('');
 }
