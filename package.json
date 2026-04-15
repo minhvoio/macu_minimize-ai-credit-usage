@@ -1,0 +1,40 @@
+{
+  "name": "macu",
+  "version": "1.0.0",
+  "description": "Minimize AI Credit Usage — Analyze tool usage across Claude Code, OpenCode, and Codex to find waste and optimize token spend",
+  "type": "module",
+  "bin": {
+    "macu": "./bin/macu.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "claude",
+    "opencode",
+    "codex",
+    "ai",
+    "tokens",
+    "usage",
+    "optimization",
+    "mcp",
+    "cli"
+  ],
+  "author": "minhvoio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/minhvoio/macu_minimize-ai-credit-usage.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5"
+  }
+}
