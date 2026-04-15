@@ -5,6 +5,32 @@ import { homedir } from 'os';
 // Empirically derived: 113,531 chars / 95 tools / ~4 chars per token ≈ 299
 const TOKENS_PER_TOOL_DEF = 300;
 
+// Tools installed within this window are too new to classify as "rarely used"
+const NEW_TOOL_GRACE_DAYS = 14;
+
+// Cap threshold so long observation windows don't set unreasonably high bars.
+// 26 = ~6 months of weekly usage. Beyond this, 1 call/2 weeks is enough to be "active".
+const MAX_RARE_THRESHOLD = 26;
+
+// Built-in tool prefixes that are NOT MCP servers. When a tool name splits on
+// its first underscore, if the prefix is in this set, skip it in MCP grouping.
+// These are OpenCode/Claude Code/Codex native tools that happen to use
+// underscore naming (lsp_diagnostics, session_read, ast_grep_search, etc.).
+// Trade-off: a hypothetical MCP server named "lsp" or "session" would be
+// silently ignored. Acceptable because these names are reserved by host tools.
+const BUILTIN_PREFIXES = new Set([
+  'lsp',        // lsp_diagnostics, lsp_rename, lsp_symbols, ...
+  'session',    // session_read, session_info, session_list, ...
+  'ast',        // ast_grep_search, ast_grep_replace
+  'background', // background_output, background_cancel
+  'grep',       // grep_app_searchGitHub
+  'websearch',  // websearch_web_search_exa
+  'skill',      // skill_mcp
+  'look',       // look_at
+  'interactive', // interactive_bash
+  'apply',      // apply_patch (Claude Code built-in)
+]);
+
 export function analyze(data, days) {
   const toolStats = buildToolStats(data.toolCalls);
   const sorted = Object.values(toolStats)
@@ -22,12 +48,23 @@ export function analyze(data, days) {
 
   // "Rarely used" = less than ~1 call per week over the observed period
   const weeks = Math.max(1, spanDays / 7);
-  const rareThreshold = Math.max(5, Math.ceil(weeks));
+  const rareThreshold = Math.min(MAX_RARE_THRESHOLD, Math.max(5, Math.ceil(weeks)));
 
-  const active = sorted.filter((t) => t.calls > rareThreshold);
-  const rarelyUsed = sorted.filter((t) => t.calls > 0 && t.calls <= rareThreshold);
-  const unused = sorted.filter((t) => t.calls === 0);
+  // Temporal metadata: mark tools as "new" or "abandoned"
+  const now = Date.now();
+  const graceCutoffMs = NEW_TOOL_GRACE_DAYS * 86_400_000;
+  for (const t of sorted) {
+    t.toolAgeDays = Math.round((now - t.firstSeen) / 86_400_000);
+    t.daysSinceLastUsed = Math.round((now - t.lastSeen) / 86_400_000);
+    t.isNew = (now - t.firstSeen) < graceCutoffMs;
+  }
 
+  const active = sorted.filter((t) => t.calls >= rareThreshold);
+  const newTools = sorted.filter((t) => t.isNew && t.calls > 0 && t.calls < rareThreshold);
+  const rarelyUsed = sorted.filter((t) => !t.isNew && t.calls > 0 && t.calls < rareThreshold);
+  const unused = sorted.filter((t) => t.calls === 0 && !t.isNew);
+
+  // New tools are excluded from removable: not enough data to judge yet
   const removable = [...unused, ...rarelyUsed];
   const totalTools = sorted.length;
   const afterToolCount = totalTools - removable.length;
@@ -56,7 +93,7 @@ export function analyze(data, days) {
     spanDays,
     overhead,
     recommendations,
-    groups: { active, rarelyUsed, unused },
+    groups: { active, rarelyUsed, unused, newTools },
     rareThreshold,
     mcpServers,
     configPaths,
@@ -69,20 +106,22 @@ function detectRemovableMcpServers(allTools, rareThreshold) {
     const sep = t.name.indexOf('_');
     if (sep === -1) continue;
     const prefix = t.name.slice(0, sep);
+    if (BUILTIN_PREFIXES.has(prefix)) continue;
     if (!servers[prefix]) {
       servers[prefix] = { name: prefix, tools: [], totalCalls: 0, activeCount: 0, removableTools: [] };
     }
     const s = servers[prefix];
     s.tools.push(t.name);
     s.totalCalls += t.calls;
-    if (t.calls > rareThreshold) {
+    if (t.calls >= rareThreshold || t.isNew) {
+      // New tools protect the server from premature removal
       s.activeCount++;
     } else {
       s.removableTools.push({ name: t.name, calls: t.calls });
     }
   }
 
-  const candidates = Object.values(servers).filter((s) => s.tools.length >= 2);
+  const candidates = Object.values(servers);
   const fullyRemovable = candidates
     .filter((s) => s.activeCount === 0)
     .sort((a, b) => a.totalCalls - b.totalCalls);
@@ -100,7 +139,7 @@ function detectConfigPaths() {
     { source: 'Claude Code', path: join(home, '.claude', 'settings.json'), desc: 'permissions + MCP' },
     { source: 'Claude Code', path: '.mcp.json', desc: 'project-level MCP config' },
   ];
-  return candidates.filter((c) => c.path.startsWith('/') ? existsSync(c.path) : true);
+  return candidates.filter((c) => existsSync(c.path));
 }
 
 // ── internal ──────────────────────────────────────────────
@@ -174,30 +213,7 @@ function buildRecommendations(sorted, rarelyUsed, unused, overhead, totalMessage
     });
   }
 
-  // 4. Duplicate tool groups (MCP prefix detection)
-  const prefixes = {};
-  for (const t of sorted) {
-    const parts = t.name.split('_');
-    if (parts.length >= 2) {
-      const prefix = parts[0];
-      if (!prefixes[prefix]) prefixes[prefix] = [];
-      prefixes[prefix].push(t);
-    }
-  }
-  for (const [prefix, tools] of Object.entries(prefixes)) {
-    const totalCalls = tools.reduce((s, t) => s + t.calls, 0);
-    if (tools.length >= 3 && totalCalls < 10) {
-      recs.push({
-        priority: 'medium',
-        title: `MCP server "${prefix}" has ${tools.length} tools with only ${totalCalls} total calls`,
-        impact: `Removing saves ~${fmt(tools.length * overhead.tokensPerToolDef)} tokens per message`,
-        tools: tools.map((t) => `${t.name} (${t.calls} calls)`),
-        action: `Consider removing the "${prefix}" MCP server entirely if these tools aren't essential.`,
-      });
-    }
-  }
-
-  // 5. Overall savings summary
+  // 4. Overall savings summary
   if (overhead.savingsPerMsg > 0) {
     recs.push({
       priority: 'info',

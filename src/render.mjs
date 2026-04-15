@@ -31,8 +31,9 @@ function renderHeader() {
   console.log(border);
   console.log('');
   console.log(chalk.dim('  How it works: every message to your AI loads ALL configured'));
-  console.log(chalk.dim('  tool definitions (~300 tokens each). Tools you never call are'));
-  console.log(chalk.dim('  silent overhead - macu finds them so you can remove them.'));
+  console.log(chalk.dim('  tool definitions (~100-2500 tokens each, avg ~300). Tools you'));
+  console.log(chalk.dim('  never call are silent overhead - macu finds them so you can'));
+  console.log(chalk.dim('  remove them. Token estimates below are approximate.'));
   console.log('');
 }
 
@@ -123,7 +124,8 @@ function renderTimeline(result) {
 
     let callsStr;
     if (tool.calls === 0) callsStr = chalk.red('0');
-    else if (tool.calls <= result.rareThreshold) callsStr = chalk.yellow(fmt(tool.calls));
+    else if (tool.isNew && tool.calls < result.rareThreshold) callsStr = chalk.blue(fmt(tool.calls));
+    else if (tool.calls < result.rareThreshold) callsStr = chalk.yellow(fmt(tool.calls));
     else callsStr = chalk.green(fmt(tool.calls));
 
     table.push([
@@ -143,8 +145,8 @@ function renderTimeline(result) {
 // ── Unused / Rarely Used ─────────────────────────────────
 
 function renderUnused(result) {
-  const { rarelyUsed, unused } = result.groups;
-  if (unused.length === 0 && rarelyUsed.length === 0) return;
+  const { rarelyUsed, unused, newTools = [] } = result.groups;
+  if (unused.length === 0 && rarelyUsed.length === 0 && newTools.length === 0) return;
 
   sectionHeader('Unused & Rarely Used Tools');
 
@@ -157,9 +159,20 @@ function renderUnused(result) {
   }
 
   if (rarelyUsed.length > 0) {
-    console.log(chalk.yellow(`  ${rarelyUsed.length} tool${rarelyUsed.length > 1 ? 's' : ''} with ≤${result.rareThreshold} calls:`));
+    console.log(chalk.yellow(`  ${rarelyUsed.length} tool${rarelyUsed.length > 1 ? 's' : ''} with <${result.rareThreshold} calls:`));
     for (const t of rarelyUsed) {
-      console.log(chalk.dim(`    • ${t.name}`) + chalk.dim(` (${t.calls} calls, last used ${fmtDate(t.lastSeen)})`));
+      const age = t.daysSinceLastUsed > 14
+        ? chalk.dim(` -- idle ${t.daysSinceLastUsed}d`)
+        : '';
+      console.log(chalk.dim(`    • ${t.name}`) + chalk.dim(` (${t.calls} calls, last used ${fmtDate(t.lastSeen)})`) + age);
+    }
+    console.log('');
+  }
+
+  if (newTools.length > 0) {
+    console.log(chalk.blue(`  ${newTools.length} recently added (installed <14 days ago, not enough data yet):`));
+    for (const t of newTools) {
+      console.log(chalk.dim(`    • ${t.name}`) + chalk.dim(` (${t.calls} calls, added ${t.toolAgeDays}d ago)`));
     }
     console.log('');
   }
@@ -229,7 +242,8 @@ function renderSavingsChart(result) {
   console.log(`  ${chalk.dim('Now      ')} ${beforeBar}  ${chalk.red(fmt(overhead.before.tokensPerMsg))} tok ${chalk.dim(`- ${overhead.before.tools} tools loaded`)}`);
   console.log(`  ${chalk.dim('Optimized')} ${afterBar}  ${chalk.green(fmt(overhead.after.tokensPerMsg))} tok ${chalk.dim(`- ${overhead.after.tools} tools loaded`)}`);
   console.log('');
-  console.log(`  ${chalk.bold.cyan('→ You would save ')}${chalk.bold.cyan(fmt(overhead.savingsPerMsg) + ' tokens per message')} ${chalk.bold.cyan(`(${pct}% reduction)`)}`);
+  console.log(`  ${chalk.bold.cyan('→ Estimated savings: ')}${chalk.bold.cyan('~' + fmt(overhead.savingsPerMsg) + ' tokens per message')} ${chalk.bold.cyan(`(${pct}% reduction)`)}`);
+  console.log(chalk.dim(`    Based on avg ~${overhead.tokensPerToolDef} tokens/tool. Actual tool sizes vary (100-2500 tokens).`));
   console.log('');
 
   if (result.totalMessages > 0) {
@@ -238,7 +252,7 @@ function renderSavingsChart(result) {
       ? `${fmt(overhead.totalSavings)} tokens (≈ ${(overhead.totalSavings / tokensPerM).toFixed(1)}M)`
       : `${fmt(overhead.totalSavings)} tokens`;
     console.log(chalk.dim(`  Applied retroactively to your ${fmt(result.totalMessages)} messages over ${result.spanDays} days,`));
-    console.log(chalk.dim(`  this would have saved ~`) + chalk.white(totalStr) + chalk.dim('.'));
+    console.log(chalk.dim(`  this would have saved roughly `) + chalk.white(totalStr) + chalk.dim('.'));
   }
   console.log('');
 }
@@ -271,7 +285,8 @@ function renderNextSteps(result) {
   if (fullyRemovable.length > 0) {
     console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('MCP servers to remove entirely')} ${chalk.dim('(100% unused/rare)')}`);
     for (const srv of fullyRemovable.slice(0, 8)) {
-      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`- ${srv.tools.length} tools, ${srv.totalCalls} total calls`)}`);
+      const example = srv.tools[0] ? chalk.dim(` (e.g. ${srv.tools[0]})`) : '';
+      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)}${example} ${chalk.dim(`- ${srv.tools.length} tool${srv.tools.length === 1 ? '' : 's'}, ${srv.totalCalls} total calls`)}`);
     }
     step++;
     console.log('');
@@ -281,7 +296,8 @@ function renderNextSteps(result) {
     console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Individual tools to remove')} ${chalk.dim('(keep the server, drop these)')}`);
     for (const srv of partial.slice(0, 6)) {
       const kept = srv.activeCount;
-      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`- ${kept} active, ${srv.removableTools.length} removable`)}`);
+      const example = srv.tools[0] ? chalk.dim(` (e.g. ${srv.tools[0]})`) : '';
+      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)}${example} ${chalk.dim(`- ${kept} active, ${srv.removableTools.length} removable`)}`);
       for (const t of srv.removableTools.slice(0, 4)) {
         console.log(chalk.dim(`        • ${t.name} (${t.calls} call${t.calls === 1 ? '' : 's'})`));
       }

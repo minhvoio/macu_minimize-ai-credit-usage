@@ -33,6 +33,7 @@ export function loadOpenCode(meta, days) {
       json_extract(data, '$.state.time.end') - json_extract(data, '$.state.time.start') AS durationMs
     FROM part
     WHERE json_extract(data, '$.type') = 'tool'
+      AND json_extract(data, '$.tool') != 'invalid'
       AND time_created >= ?
     ORDER BY time_created ASC
   `).all(cutoffMs).map((r) => ({ ...r, source: 'opencode' }));
