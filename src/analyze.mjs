@@ -41,7 +41,7 @@ export function analyze(data, days) {
   };
 
   const recommendations = buildRecommendations(sorted, rarelyUsed, unused, overhead, totalMessages);
-  const mcpServers = detectRemovableMcpServers(removable);
+  const mcpServers = detectRemovableMcpServers(sorted, rareThreshold);
   const configPaths = detectConfigPaths();
 
   return {
@@ -63,17 +63,34 @@ export function analyze(data, days) {
   };
 }
 
-function detectRemovableMcpServers(removableTools) {
+function detectRemovableMcpServers(allTools, rareThreshold) {
   const servers = {};
-  for (const t of removableTools) {
+  for (const t of allTools) {
     const sep = t.name.indexOf('_');
     if (sep === -1) continue;
     const prefix = t.name.slice(0, sep);
-    if (!servers[prefix]) servers[prefix] = { name: prefix, tools: [], totalCalls: 0 };
-    servers[prefix].tools.push(t.name);
-    servers[prefix].totalCalls += t.calls;
+    if (!servers[prefix]) {
+      servers[prefix] = { name: prefix, tools: [], totalCalls: 0, activeCount: 0, removableTools: [] };
+    }
+    const s = servers[prefix];
+    s.tools.push(t.name);
+    s.totalCalls += t.calls;
+    if (t.calls > rareThreshold) {
+      s.activeCount++;
+    } else {
+      s.removableTools.push({ name: t.name, calls: t.calls });
+    }
   }
-  return Object.values(servers).filter((s) => s.tools.length >= 2).sort((a, b) => a.totalCalls - b.totalCalls);
+
+  const candidates = Object.values(servers).filter((s) => s.tools.length >= 2);
+  const fullyRemovable = candidates
+    .filter((s) => s.activeCount === 0)
+    .sort((a, b) => a.totalCalls - b.totalCalls);
+  const partial = candidates
+    .filter((s) => s.activeCount > 0 && s.removableTools.length > 0)
+    .sort((a, b) => b.removableTools.length - a.removableTools.length);
+
+  return { fullyRemovable, partial };
 }
 
 function detectConfigPaths() {

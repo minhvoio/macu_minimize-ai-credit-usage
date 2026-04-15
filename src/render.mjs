@@ -263,26 +263,46 @@ function renderNextSteps(result) {
 
   let step = 1;
 
-  if (mcpServers.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove low-value MCP servers from config')}`);
-    for (const srv of mcpServers.slice(0, 5)) {
+  const { fullyRemovable = [], partial = [] } = mcpServers || {};
+
+  if (fullyRemovable.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('MCP servers to remove entirely')} ${chalk.dim('(100% unused/rare)')}`);
+    for (const srv of fullyRemovable.slice(0, 8)) {
       console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`— ${srv.tools.length} tools, ${srv.totalCalls} total calls`)}`);
     }
     step++;
     console.log('');
   }
 
-  if (result.groups.unused.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(`Remove ${result.groups.unused.length} unused tools (0 calls)`)}`);
-    const show = result.groups.unused.slice(0, 6);
-    for (const t of show) {
-      console.log(`     ${chalk.red('✗')} ${chalk.dim(t.name)}`);
-    }
-    if (result.groups.unused.length > 6) {
-      console.log(chalk.dim(`     ... and ${result.groups.unused.length - 6} more`));
+  if (partial.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Individual tools to remove')} ${chalk.dim('(keep the server, drop these)')}`);
+    for (const srv of partial.slice(0, 6)) {
+      const kept = srv.activeCount;
+      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`— ${kept} active, ${srv.removableTools.length} removable`)}`);
+      for (const t of srv.removableTools.slice(0, 4)) {
+        console.log(chalk.dim(`        • ${t.name} (${t.calls} call${t.calls === 1 ? '' : 's'})`));
+      }
+      if (srv.removableTools.length > 4) {
+        console.log(chalk.dim(`        ... and ${srv.removableTools.length - 4} more`));
+      }
     }
     step++;
     console.log('');
+  }
+
+  if (result.groups.unused.length > 0) {
+    const orphanUnused = result.groups.unused.filter((t) => t.name.indexOf('_') === -1);
+    if (orphanUnused.length > 0) {
+      console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(`Other unused tools (0 calls)`)}`);
+      for (const t of orphanUnused.slice(0, 6)) {
+        console.log(`     ${chalk.red('✗')} ${chalk.dim(t.name)}`);
+      }
+      if (orphanUnused.length > 6) {
+        console.log(chalk.dim(`     ... and ${orphanUnused.length - 6} more`));
+      }
+      step++;
+      console.log('');
+    }
   }
 
   if (configPaths.length > 0) {
