@@ -1,3 +1,5 @@
+import { execSync } from 'child_process';
+import { platform } from 'os';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 
@@ -14,7 +16,7 @@ export function render(result, sourceNames) {
   renderRecommendations(result);
   renderSavingsChart(result);
   renderNextSteps(result);
-  console.log('');
+  promptCopyIfTTY(result);
 }
 
 // ── Header ────────────────────────────────────────────────
@@ -321,4 +323,96 @@ function fmtDate(ms) {
 function fmt(n) {
   if (typeof n !== 'number') return String(n);
   return n.toLocaleString('en-US');
+}
+
+// ── Copy-to-clipboard prompt ─────────────────────────────
+
+function promptCopyIfTTY(result) {
+  const removableCount = result.groups.unused.length + result.groups.rarelyUsed.length;
+  if (removableCount === 0) return;
+  if (!process.stdout.isTTY || !process.stdin.isTTY) return;
+
+  const prompt = buildAgentPrompt(result);
+
+  console.log(chalk.dim('  ─────────────────────────────────────────────────────'));
+  console.log(`  Press ${chalk.bold.cyan('c')} to copy optimization prompt to clipboard`);
+  console.log(`  Press ${chalk.dim('any other key')} to exit`);
+  console.log('');
+
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.once('data', (key) => {
+    process.stdin.setRawMode(false);
+    process.stdin.pause();
+
+    if (key.toString() === 'c' || key.toString() === 'C') {
+      const copied = copyToClipboard(prompt);
+      if (copied) {
+        console.log(chalk.green('  ✓ Copied to clipboard. Paste it to your AI agent.'));
+      } else {
+        console.log(chalk.yellow('  ⚠ Could not copy to clipboard. Prompt printed below:'));
+        console.log('');
+        console.log(prompt);
+      }
+    }
+
+    console.log('');
+    process.exit(0);
+  });
+}
+
+function buildAgentPrompt(result) {
+  const { overhead, mcpServers, configPaths } = result;
+  const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
+
+  let prompt = `I ran macu (Minimize AI Credit Usage) and it found ${overhead.before.tools - overhead.after.tools} tools that can be removed to save ~${fmt(overhead.savingsPerMsg)} tokens per message (${pct}% reduction).\n\n`;
+
+  prompt += `Please apply these optimizations:\n\n`;
+
+  if (mcpServers.length > 0) {
+    prompt += `Remove these MCP servers (low/zero usage):\n`;
+    for (const srv of mcpServers) {
+      prompt += `- "${srv.name}" (${srv.tools.length} tools, ${srv.totalCalls} total calls)\n`;
+    }
+    prompt += `\n`;
+  }
+
+  if (configPaths.length > 0) {
+    prompt += `Config files to edit:\n`;
+    for (const cp of configPaths) {
+      if (cp.path.startsWith('/')) {
+        prompt += `- ${cp.source}: ${cp.path}\n`;
+      }
+    }
+    prompt += `\n`;
+  }
+
+  prompt += `After removing, run \`macu\` again to verify the savings.\n`;
+  prompt += `Expected result: ${overhead.before.tools} → ${overhead.after.tools} tools, ~${fmt(overhead.savingsPerMsg)} tokens saved per message.`;
+
+  return prompt;
+}
+
+function copyToClipboard(text) {
+  try {
+    const os = platform();
+    if (os === 'darwin') {
+      execSync('pbcopy', { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
+      return true;
+    }
+    if (os === 'linux') {
+      try {
+        execSync('xclip -selection clipboard', { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
+        return true;
+      } catch {
+        execSync('xsel --clipboard --input', { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
+        return true;
+      }
+    }
+    if (os === 'win32') {
+      execSync('clip', { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
+      return true;
+    }
+  } catch { /* clipboard unavailable */ }
+  return false;
 }
