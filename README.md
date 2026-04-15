@@ -6,7 +6,7 @@
 
 We found the waste. Built the tool. Cut it in half.
 
-Install. Run `macu`. Done.
+**Run `macu` inside your AI session.** The agent analyzes your usage, identifies waste, edits your configs, and verifies the savings — all in one loop.
 
 ---
 
@@ -14,10 +14,10 @@ Install. Run `macu`. Done.
 
 ### For LLM Agents
 
-Paste this prompt to your agent (Claude Code, OpenCode, Codex, Cursor, etc.):
+Paste this to your agent (Claude Code, OpenCode, Codex, Cursor, etc.):
 
 ```
-Install and configure macu by following the instructions here:
+Install macu and run it to optimize my tool usage. Follow the guide:
 https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/docs/guide/installation.md
 ```
 
@@ -29,30 +29,30 @@ curl -s https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage
 
 ### For Humans
 
-Copy and paste this into your terminal:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/install.sh | bash
 ```
 
-Or install manually:
+Or: `npm install -g macu`
 
-```bash
-npm install -g macu
-```
+> **Note:** `macu` is designed to run inside an AI coding session. You can run it from your terminal to see the analysis, but the optimization step (editing configs, removing MCP servers) is meant to be executed by your AI agent. If you ran `macu` outside a session, paste the output to your agent and ask it to apply the action plan.
 
 ---
 
 ## Usage
 
+Run this inside your AI agent session:
+
 ```bash
-macu                    # full analysis — auto-detects all sources
+macu                    # analyze + action plan for the agent to execute
 macu --days 30          # last 30 days only
 macu --source opencode  # OpenCode only
 macu --source claude    # Claude Code only
 macu --source codex     # Codex only
 macu --json             # raw JSON for scripting
 ```
+
+The agent reads the output, follows the action plan, edits your configs, then runs `macu` again to verify savings.
 
 ### Optional: `cu` — Claude Code Usage Monitor
 

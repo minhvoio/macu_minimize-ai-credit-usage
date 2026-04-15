@@ -254,7 +254,9 @@ function renderNextSteps(result) {
   sectionHeader('Action Plan');
 
   console.log(chalk.dim('  Analysis complete — no changes have been made yet.'));
-  console.log(chalk.dim('  AI agent: read the steps below and execute them.'));
+  console.log('');
+  console.log(chalk.yellow('  ⚡ AI agent:') + chalk.dim(' read the steps below and execute them.'));
+  console.log(chalk.dim('  🖥  Terminal: paste this output to your AI agent to apply the optimization.'));
   console.log('');
 
   let step = 1;
