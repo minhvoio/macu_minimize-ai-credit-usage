@@ -145,7 +145,7 @@ function buildRecommendations(sorted, rarelyUsed, unused, overhead, totalMessage
       title: `Remove ${unused.length} unused tool${unused.length > 1 ? 's' : ''} (0 calls)`,
       impact: `Saves ~${fmt(unused.length * overhead.tokensPerToolDef)} tokens per message`,
       tools: unused.map((t) => t.name),
-      action: 'Remove these tools/plugins from your config — they add overhead without providing value.',
+      action: 'Remove these tools/plugins from your config - they add overhead without providing value.',
     });
   }
 

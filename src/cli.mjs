@@ -3,7 +3,7 @@ import { analyze } from './analyze.mjs';
 import { render } from './render.mjs';
 
 const HELP = `
-macu — Minimize AI Credit Usage
+macu - Minimize AI Credit Usage
 
 Commands:
   macu              Analyze tool usage and show optimization opportunities
@@ -16,7 +16,7 @@ Options:
   --json            Output raw JSON instead of terminal UI
 
 Examples:
-  macu                    # full analysis — auto-detects all sources
+  macu                    # full analysis - auto-detects all sources
   macu --days 30          # last 30 days only
   macu --source opencode  # OpenCode only
   macu --json | jq        # pipe raw data to other tools

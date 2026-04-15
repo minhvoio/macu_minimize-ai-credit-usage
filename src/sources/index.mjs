@@ -3,7 +3,7 @@ import { probeClaudeCode, loadClaudeCode } from './claude-code.mjs';
 import { probeCodex, loadCodex } from './codex.mjs';
 
 /**
- * Normalized data model — every source adapter returns this shape.
+ * Normalized data model - every source adapter returns this shape.
  *
  * @typedef {Object} ToolCall
  * @property {string}  tool       - Tool name (e.g. "bash", "Read", "shell")

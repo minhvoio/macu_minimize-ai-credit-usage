@@ -26,13 +26,13 @@ function renderHeader() {
   console.log(border);
   console.log(
     chalk.bold.cyan('  macu') +
-    chalk.dim(' — Minimize AI Credit Usage')
+    chalk.dim(' - Minimize AI Credit Usage')
   );
   console.log(border);
   console.log('');
   console.log(chalk.dim('  How it works: every message to your AI loads ALL configured'));
   console.log(chalk.dim('  tool definitions (~300 tokens each). Tools you never call are'));
-  console.log(chalk.dim('  silent overhead — macu finds them so you can remove them.'));
+  console.log(chalk.dim('  silent overhead - macu finds them so you can remove them.'));
   console.log('');
 }
 
@@ -226,8 +226,8 @@ function renderSavingsChart(result) {
 
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
 
-  console.log(`  ${chalk.dim('Now      ')} ${beforeBar}  ${chalk.red(fmt(overhead.before.tokensPerMsg))} tok ${chalk.dim(`— ${overhead.before.tools} tools loaded`)}`);
-  console.log(`  ${chalk.dim('Optimized')} ${afterBar}  ${chalk.green(fmt(overhead.after.tokensPerMsg))} tok ${chalk.dim(`— ${overhead.after.tools} tools loaded`)}`);
+  console.log(`  ${chalk.dim('Now      ')} ${beforeBar}  ${chalk.red(fmt(overhead.before.tokensPerMsg))} tok ${chalk.dim(`- ${overhead.before.tools} tools loaded`)}`);
+  console.log(`  ${chalk.dim('Optimized')} ${afterBar}  ${chalk.green(fmt(overhead.after.tokensPerMsg))} tok ${chalk.dim(`- ${overhead.after.tools} tools loaded`)}`);
   console.log('');
   console.log(`  ${chalk.bold.cyan('→ You would save ')}${chalk.bold.cyan(fmt(overhead.savingsPerMsg) + ' tokens per message')} ${chalk.bold.cyan(`(${pct}% reduction)`)}`);
   console.log('');
@@ -258,7 +258,7 @@ function renderNextSteps(result) {
 
   sectionHeader('Action Plan');
 
-  console.log(chalk.dim('  Analysis complete — no changes have been made yet.'));
+  console.log(chalk.dim('  Analysis complete - no changes have been made yet.'));
   console.log('');
   console.log(chalk.yellow('  ⚡ AI agent:') + chalk.dim(' read the steps below and execute them.'));
   console.log(chalk.dim('  🖥  Terminal: paste this output to your AI agent to apply the optimization.'));
@@ -271,7 +271,7 @@ function renderNextSteps(result) {
   if (fullyRemovable.length > 0) {
     console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('MCP servers to remove entirely')} ${chalk.dim('(100% unused/rare)')}`);
     for (const srv of fullyRemovable.slice(0, 8)) {
-      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`— ${srv.tools.length} tools, ${srv.totalCalls} total calls`)}`);
+      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`- ${srv.tools.length} tools, ${srv.totalCalls} total calls`)}`);
     }
     step++;
     console.log('');
@@ -281,7 +281,7 @@ function renderNextSteps(result) {
     console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Individual tools to remove')} ${chalk.dim('(keep the server, drop these)')}`);
     for (const srv of partial.slice(0, 6)) {
       const kept = srv.activeCount;
-      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`— ${kept} active, ${srv.removableTools.length} removable`)}`);
+      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`- ${kept} active, ${srv.removableTools.length} removable`)}`);
       for (const t of srv.removableTools.slice(0, 4)) {
         console.log(chalk.dim(`        • ${t.name} (${t.calls} call${t.calls === 1 ? '' : 's'})`));
       }

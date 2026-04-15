@@ -1,4 +1,4 @@
-# AGENTS.md — Guide for AI Agents
+# AGENTS.md - Guide for AI Agents
 
 ## What is this project?
 
@@ -57,7 +57,7 @@ Every source adapter must return:
 ## Adding a New Source Adapter
 
 1. Create `src/sources/<name>.mjs` exporting `probe<Name>()` and `load<Name>(meta, days)`
-2. `probe` returns `{ exists: boolean, ...meta }` — quick check, no heavy I/O
+2. `probe` returns `{ exists: boolean, ...meta }` - quick check, no heavy I/O
 3. `load` returns the normalized data model above
 4. Register in `src/sources/index.mjs` SOURCES array
 5. Test with `macu --source <name>`
@@ -72,19 +72,19 @@ Every source adapter must return:
 
 ## Key Decisions
 
-- **ESM only** (`"type": "module"`) — all imports use `.mjs` extension
-- **better-sqlite3** for SQLite — fast, synchronous, native bindings
-- **chalk v5** for colors — ESM-only, zero deps
-- **cli-table3** for tables — battle-tested, CJS but works fine in ESM
-- **No framework** for CLI args — hand-rolled flag parser (3 flags, no need for commander)
+- **ESM only** (`"type": "module"`) - all imports use `.mjs` extension
+- **better-sqlite3** for SQLite - fast, synchronous, native bindings
+- **chalk v5** for colors - ESM-only, zero deps
+- **cli-table3** for tables - battle-tested, CJS but works fine in ESM
+- **No framework** for CLI args - hand-rolled flag parser (3 flags, no need for commander)
 - **Token estimation**: ~300 tokens per tool definition (empirically derived from real audit data: 113,531 chars / 95 tools / 4 chars per token)
 
 ## Conventions
 
 - Prefer pure functions, no global state
-- Each source adapter is self-contained — no cross-adapter dependencies
-- `render.mjs` is the only file that imports chalk — all other files return plain data
-- Analysis is source-agnostic — it works on the normalized model only
+- Each source adapter is self-contained - no cross-adapter dependencies
+- `render.mjs` is the only file that imports chalk - all other files return plain data
+- Analysis is source-agnostic - it works on the normalized model only
 - Error handling: adapters catch and skip bad data silently (corrupt JSONL lines, missing fields)
 
 ## Testing Locally
@@ -99,6 +99,6 @@ node bin/macu.mjs --json | jq   # inspect raw output
 ## Common Tasks
 
 - **Add new recommendation type**: edit `buildRecommendations()` in `src/analyze.mjs`
-- **Change chart appearance**: edit `render.mjs` — all visual output is isolated there
+- **Change chart appearance**: edit `render.mjs` - all visual output is isolated there
 - **Support new data source**: follow "Adding a New Source Adapter" above
 - **Adjust token-per-tool estimate**: change `TOKENS_PER_TOOL_DEF` in `src/analyze.mjs`

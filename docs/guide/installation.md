@@ -44,7 +44,7 @@ macu --source opencode --days 30
 
 This should produce a full analysis if OpenCode data exists on the machine.
 
-### Step 5: Optional — Claude Usage Monitor (cu)
+### Step 5: Optional - Claude Usage Monitor (cu)
 
 The `cu` command shows live Claude Code subscription usage (5h/weekly limits with colored bars).
 

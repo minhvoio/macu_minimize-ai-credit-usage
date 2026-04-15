@@ -1,5 +1,5 @@
 #!/bin/bash
-# cu — Show Claude Code usage limits (colored bars + reset timers)
+# cu - Show Claude Code usage limits (colored bars + reset timers)
 # Wrapper around scripts/claude_usage.py
 # Requires: macOS, Python 3, curl, Claude Code logged in
 

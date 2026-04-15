@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""claude-usage — Show Claude Code OAuth usage limits with colored terminal bars.
+"""claude-usage - Show Claude Code OAuth usage limits with colored terminal bars.
 
 Reads credentials from macOS Keychain, calls the Anthropic OAuth usage API,
 and displays 5h/weekly utilization with colored progress bars.
@@ -273,7 +273,7 @@ def format_limits(data, account_label=None):
     label_str = f"  ({BOLD}{account_label}{RESET})" if account_label else ""
 
     print()
-    print(f"  {BOLD}Claude Code Usage{RESET}{label_str}  —  {now_str}")
+    print(f"  {BOLD}Claude Code Usage{RESET}{label_str}  -  {now_str}")
     print(f"  {'─' * 55}")
 
     # 5-hour limit

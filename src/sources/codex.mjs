@@ -98,7 +98,7 @@ function parseRolloutFile(filePath, cutoffMs, toolCalls, tokenSnapshots, session
       });
     }
 
-    // Token snapshots: cumulative counts — compute delta
+    // Token snapshots: cumulative counts - compute delta
     if (entry.type === 'event_msg' && entry.payload?.type === 'token_count') {
       const info = entry.payload.info?.total_token_usage;
       if (info) {
@@ -112,7 +112,7 @@ function parseRolloutFile(filePath, cutoffMs, toolCalls, tokenSnapshots, session
           source: 'codex',
         };
 
-        // Codex reports cumulative totals — convert to per-step delta
+        // Codex reports cumulative totals - convert to per-step delta
         if (prevTokens) {
           snap.inputTokens = Math.max(0, snap.inputTokens - prevTokens.inputTokens);
           snap.outputTokens = Math.max(0, snap.outputTokens - prevTokens.outputTokens);

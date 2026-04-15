@@ -1,16 +1,16 @@
-# macu — Minimize AI Credit Usage
+# macu - Minimize AI Credit Usage
 
 ## My story
 
 I was paying for Claude Code and burning through my 5-hour limit in 1.5 hours.
 
-I'd open a new session, send a few messages, ask Claude to help me with one task — and somehow I was already at 40% of my window. It didn't match the work I was actually doing.
+I'd open a new session, send a few messages, ask Claude to help me with one task - and somehow I was already at 40% of my window. It didn't match the work I was actually doing.
 
 So I pulled my usage data. 50 days. 830 sessions. **33,000 tool calls.** And I found it.
 
 Every single message I sent was carrying **95 MCP tool definitions** in the request body. Linear. Slack. LSP. Custom plugins I'd installed months ago and forgotten. All 95 of them, loaded fresh into the context on every single request.
 
-But when I counted what I actually used? **35 tools.** The other 60 were dead weight — adding ~9,000 tokens of overhead to every message before I even typed a word.
+But when I counted what I actually used? **35 tools.** The other 60 were dead weight - adding ~9,000 tokens of overhead to every message before I even typed a word.
 
 **That was 32% of my input budget, gone, forever, on tools I never called.**
 
@@ -21,13 +21,13 @@ If I had been paying API rates for that overhead, the bill would have been:
 - **~$1,395** at Claude Sonnet input pricing ($3 / million tokens)
 - **~$6,975** at Claude Opus input pricing ($15 / million tokens)
 
-On a subscription it doesn't hit your credit card directly — but it IS the reason your plan's window feels smaller than it should. You're shipping $1,000+ of worthless tool definitions inside every plan cycle.
+On a subscription it doesn't hit your credit card directly - but it IS the reason your plan's window feels smaller than it should. You're shipping $1,000+ of worthless tool definitions inside every plan cycle.
 
 So I built `macu` to find this waste in anyone's setup and make it easy to clean up.
 
 ## What `macu` does
 
-It reads your actual tool-call history from Claude Code, OpenCode, or Codex — then shows you:
+It reads your actual tool-call history from Claude Code, OpenCode, or Codex - then shows you:
 
 - Which tools you actually use (the 35 that earn their keep)
 - Which tools are silent overhead (the 60 costing you money for nothing)
@@ -89,7 +89,7 @@ macu --json             # raw JSON for scripting
 
 The agent reads the output, follows the action plan, edits your configs, then runs `macu` again to verify savings.
 
-### Optional: `cu` — Claude Code Usage Monitor
+### Optional: `cu` - Claude Code Usage Monitor
 
 Live subscription limits with colored bars. Ships with macu, works on macOS.
 
@@ -108,8 +108,8 @@ Requires: macOS, Python 3, Claude Code logged in. See [installation guide](./doc
 |---------|-------------|
 | **Tool Frequency** | Bar chart of most-called tools with call counts and percentages |
 | **Activity Timeline** | Table with first/last seen dates for every tool |
-| **Unused Tools** | Tools with 0 calls — pure dead weight in your context |
-| **Rarely Used Tools** | Less than ~1 call/week — candidates for removal |
+| **Unused Tools** | Tools with 0 calls - pure dead weight in your context |
+| **Rarely Used Tools** | Less than ~1 call/week - candidates for removal |
 | **Recommendations** | Prioritized actions: which tools/plugins/MCP servers to cut |
 | **Before vs After** | Token savings chart showing impact of applying recommendations |
 
@@ -142,11 +142,11 @@ detect sources → load data → normalize → analyze → render
                              TokenSnap
 ```
 
-1. **Detect** — Probes known data locations for each AI tool
-2. **Extract** — Reads tool call history via source-specific adapters (SQLite queries, JSONL parsing)
-3. **Normalize** — Every adapter returns the same shape: `{ toolCalls, tokenSnapshots, sessionCount }`
-4. **Analyze** — Frequency, recency, token overhead, MCP server grouping, recommendations
-5. **Render** — Charts, tables, and recommendations in the terminal
+1. **Detect** - Probes known data locations for each AI tool
+2. **Extract** - Reads tool call history via source-specific adapters (SQLite queries, JSONL parsing)
+3. **Normalize** - Every adapter returns the same shape: `{ toolCalls, tokenSnapshots, sessionCount }`
+4. **Analyze** - Frequency, recency, token overhead, MCP server grouping, recommendations
+5. **Render** - Charts, tables, and recommendations in the terminal
 
 ---
 
@@ -196,7 +196,7 @@ The root cause: every API call to Anthropic includes ALL tool definitions in the
 ## Requirements
 
 - **Node.js ≥ 18** (for `macu`)
-- **Python 3 + macOS** (for `cu` only — optional)
+- **Python 3 + macOS** (for `cu` only - optional)
 - At least one AI tool with usage history
 
 ---

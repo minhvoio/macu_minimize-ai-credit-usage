@@ -10,7 +10,7 @@ RED="\033[31m"
 RESET="\033[0m"
 
 echo ""
-echo -e "${CYAN}${BOLD}  macu${RESET}${DIM} — Minimize AI Credit Usage${RESET}"
+echo -e "${CYAN}${BOLD}  macu${RESET}${DIM} - Minimize AI Credit Usage${RESET}"
 echo -e "${DIM}  ────────────────────────────────────────${RESET}"
 echo ""
 
@@ -66,7 +66,7 @@ echo -e "${DIM}  Requires: macOS + Claude Code logged in.${RESET}"
 echo ""
 
 if [ "$(uname)" != "Darwin" ]; then
-  echo -e "${DIM}  Skipped — cu requires macOS (detected: $(uname)).${RESET}"
+  echo -e "${DIM}  Skipped - cu requires macOS (detected: $(uname)).${RESET}"
 else
   if command -v cu &>/dev/null; then
     echo -e "${GREEN}  ✓${RESET} cu already installed → $(which cu)"
@@ -84,7 +84,7 @@ else
   if command -v python3 &>/dev/null; then
     echo -e "${GREEN}  ✓${RESET} Python 3 available (needed by cu)"
   else
-    echo -e "${YELLOW}  ⚠${RESET} Python 3 not found — cu will not work without it."
+    echo -e "${YELLOW}  ⚠${RESET} Python 3 not found - cu will not work without it."
   fi
 fi
 
