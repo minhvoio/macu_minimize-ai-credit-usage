@@ -1,13 +1,8 @@
-/**
- * Source-agnostic analysis engine.
- *
- * Takes the normalized SourceData from any adapter and produces
- * frequency stats, timeline data, recommendations, and before/after projections.
- */
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 
-// Average tokens consumed by a single tool definition in the system prompt.
-// Derived empirically: 113,531 chars / 95 tools / ~4 chars per token ≈ 299.
-// Rounded to 300 for clean math.
+// Empirically derived: 113,531 chars / 95 tools / ~4 chars per token ≈ 299
 const TOKENS_PER_TOOL_DEF = 300;
 
 export function analyze(data, days) {
@@ -46,6 +41,8 @@ export function analyze(data, days) {
   };
 
   const recommendations = buildRecommendations(sorted, rarelyUsed, unused, overhead, totalMessages);
+  const mcpServers = detectRemovableMcpServers(removable);
+  const configPaths = detectConfigPaths();
 
   return {
     tools: sorted,
@@ -61,7 +58,32 @@ export function analyze(data, days) {
     recommendations,
     groups: { active, rarelyUsed, unused },
     rareThreshold,
+    mcpServers,
+    configPaths,
   };
+}
+
+function detectRemovableMcpServers(removableTools) {
+  const servers = {};
+  for (const t of removableTools) {
+    const sep = t.name.indexOf('_');
+    if (sep === -1) continue;
+    const prefix = t.name.slice(0, sep);
+    if (!servers[prefix]) servers[prefix] = { name: prefix, tools: [], totalCalls: 0 };
+    servers[prefix].tools.push(t.name);
+    servers[prefix].totalCalls += t.calls;
+  }
+  return Object.values(servers).filter((s) => s.tools.length >= 2).sort((a, b) => a.totalCalls - b.totalCalls);
+}
+
+function detectConfigPaths() {
+  const home = homedir();
+  const candidates = [
+    { source: 'OpenCode', path: join(home, '.config', 'opencode', 'opencode.json'), desc: 'MCP servers + plugins' },
+    { source: 'Claude Code', path: join(home, '.claude', 'settings.json'), desc: 'permissions + MCP' },
+    { source: 'Claude Code', path: '.mcp.json', desc: 'project-level MCP config' },
+  ];
+  return candidates.filter((c) => c.path.startsWith('/') ? existsSync(c.path) : true);
 }
 
 // ── internal ──────────────────────────────────────────────

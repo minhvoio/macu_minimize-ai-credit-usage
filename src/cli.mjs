@@ -5,23 +5,27 @@ import { render } from './render.mjs';
 const HELP = `
 macu — Minimize AI Credit Usage
 
-Usage:
-  macu              Full analysis (auto-detects data sources)
-  macu --days N     Analyze last N days (default: 180)
-  macu --source X   Only analyze a specific source (opencode|claude|codex)
-  macu --json       Output raw JSON instead of terminal UI
-  macu --help       Show this help
+Commands:
+  macu              Analyze tool usage and show optimization opportunities
+  macu help         Show this help
+  cu                Show live Claude Code usage limits (macOS only)
+
+Options:
+  --days N          Analyze last N days (default: 180)
+  --source X        Only analyze a specific source (opencode|claude|codex)
+  --json            Output raw JSON instead of terminal UI
 
 Examples:
-  macu                    # analyze everything found on this machine
+  macu                    # full analysis — auto-detects all sources
   macu --days 30          # last 30 days only
   macu --source opencode  # OpenCode only
+  macu --json | jq        # pipe raw data to other tools
 `.trim();
 
 export async function run(argv) {
   const flags = parseFlags(argv);
 
-  if (flags.help) {
+  if (flags.help || argv[0] === 'help') {
     console.log(HELP);
     return;
   }

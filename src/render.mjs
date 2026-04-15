@@ -13,6 +13,7 @@ export function render(result, sourceNames) {
   renderUnused(result);
   renderRecommendations(result);
   renderSavingsChart(result);
+  renderNextSteps(result);
   console.log('');
 }
 
@@ -234,6 +235,73 @@ function renderSavingsChart(result) {
       console.log(`                          ${chalk.dim(`≈ ${(overhead.totalSavings / tokensPerM).toFixed(1)}M tokens`)}`);
     }
   }
+  console.log('');
+}
+
+// ── Next Steps (CTA) ─────────────────────────────────────
+
+function renderNextSteps(result) {
+  const { overhead, mcpServers, configPaths } = result;
+  const removableCount = result.groups.unused.length + result.groups.rarelyUsed.length;
+
+  if (removableCount === 0) {
+    sectionHeader('Status');
+    console.log(chalk.green('  ✓ All tools are actively used. Nothing to optimize.'));
+    console.log('');
+    return;
+  }
+
+  sectionHeader('What to Do Next');
+
+  console.log(chalk.dim('  This is analysis only — no changes have been made.'));
+  console.log('');
+
+  let step = 1;
+
+  if (mcpServers.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove low-value MCP servers')}`);
+    for (const srv of mcpServers.slice(0, 5)) {
+      console.log(chalk.dim(`     • "${srv.name}" — ${srv.tools.length} tools, ${srv.totalCalls} total calls`));
+    }
+    step++;
+    console.log('');
+  }
+
+  if (result.groups.unused.length > 0 || result.groups.rarelyUsed.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove unused/rarely-used tools from your config')}`);
+    if (configPaths.length > 0) {
+      for (const cp of configPaths) {
+        console.log(chalk.dim(`     → ${cp.source}: ${cp.path} (${cp.desc})`));
+      }
+    }
+    step++;
+    console.log('');
+  }
+
+  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Verify savings')}`);
+  console.log(chalk.dim('     → Run ') + chalk.cyan('macu') + chalk.dim(' again after removing tools to confirm reduction'));
+  step++;
+  console.log('');
+
+  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Or paste this to your AI agent for guided cleanup:')}`);
+  console.log('');
+  console.log(chalk.dim('     ─────────────────────────────────────────────'));
+  console.log(`     ${chalk.white("Analyze my tool usage with macu and help me remove the")}`);
+  console.log(`     ${chalk.white("unused tools it identified. My config is at:")}`);
+  for (const cp of configPaths) {
+    if (cp.path.startsWith('/')) {
+      console.log(`     ${chalk.cyan(cp.path)}`);
+    }
+  }
+  console.log(chalk.dim('     ─────────────────────────────────────────────'));
+  console.log('');
+
+  const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
+  console.log(
+    chalk.bold.green(`  Expected result: `) +
+    chalk.green(`${fmt(overhead.before.tools)} → ${fmt(overhead.after.tools)} tools, `) +
+    chalk.bold.green(`${pct}% fewer tokens per message`)
+  );
   console.log('');
 }
 
