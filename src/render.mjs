@@ -251,56 +251,54 @@ function renderNextSteps(result) {
     return;
   }
 
-  sectionHeader('What to Do Next');
+  sectionHeader('Action Plan');
 
-  console.log(chalk.dim('  This is analysis only — no changes have been made.'));
+  console.log(chalk.dim('  Analysis complete — no changes have been made yet.'));
+  console.log(chalk.dim('  AI agent: read the steps below and execute them.'));
   console.log('');
 
   let step = 1;
 
   if (mcpServers.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove low-value MCP servers')}`);
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove low-value MCP servers from config')}`);
     for (const srv of mcpServers.slice(0, 5)) {
-      console.log(chalk.dim(`     • "${srv.name}" — ${srv.tools.length} tools, ${srv.totalCalls} total calls`));
+      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)} ${chalk.dim(`— ${srv.tools.length} tools, ${srv.totalCalls} total calls`)}`);
     }
     step++;
     console.log('');
   }
 
-  if (result.groups.unused.length > 0 || result.groups.rarelyUsed.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Remove unused/rarely-used tools from your config')}`);
-    if (configPaths.length > 0) {
-      for (const cp of configPaths) {
-        console.log(chalk.dim(`     → ${cp.source}: ${cp.path} (${cp.desc})`));
-      }
+  if (result.groups.unused.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(`Remove ${result.groups.unused.length} unused tools (0 calls)`)}`);
+    const show = result.groups.unused.slice(0, 6);
+    for (const t of show) {
+      console.log(`     ${chalk.red('✗')} ${chalk.dim(t.name)}`);
+    }
+    if (result.groups.unused.length > 6) {
+      console.log(chalk.dim(`     ... and ${result.groups.unused.length - 6} more`));
     }
     step++;
     console.log('');
   }
 
-  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Verify savings')}`);
-  console.log(chalk.dim('     → Run ') + chalk.cyan('macu') + chalk.dim(' again after removing tools to confirm reduction'));
-  step++;
-  console.log('');
-
-  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Or paste this to your AI agent for guided cleanup:')}`);
-  console.log('');
-  console.log(chalk.dim('     ─────────────────────────────────────────────'));
-  console.log(`     ${chalk.white("Analyze my tool usage with macu and help me remove the")}`);
-  console.log(`     ${chalk.white("unused tools it identified. My config is at:")}`);
-  for (const cp of configPaths) {
-    if (cp.path.startsWith('/')) {
-      console.log(`     ${chalk.cyan(cp.path)}`);
+  if (configPaths.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Config files to edit')}`);
+    for (const cp of configPaths) {
+      console.log(`     ${chalk.cyan('→')} ${cp.source}: ${chalk.white(cp.path)}`);
     }
+    step++;
+    console.log('');
   }
-  console.log(chalk.dim('     ─────────────────────────────────────────────'));
+
+  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Verify')}`);
+  console.log(chalk.dim('     Run ') + chalk.cyan('macu') + chalk.dim(' again after cleanup to confirm savings'));
   console.log('');
 
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
   console.log(
-    chalk.bold.green(`  Expected result: `) +
-    chalk.green(`${fmt(overhead.before.tools)} → ${fmt(overhead.after.tools)} tools, `) +
-    chalk.bold.green(`${pct}% fewer tokens per message`)
+    chalk.bold.green(`  Expected: `) +
+    chalk.green(`${overhead.before.tools} → ${overhead.after.tools} tools, `) +
+    chalk.bold.green(`~${fmt(overhead.savingsPerMsg)} tokens saved per message (${pct}%)`)
   );
   console.log('');
 }
