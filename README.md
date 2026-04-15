@@ -2,7 +2,7 @@
 
 ## My story
 
-I was paying for Claude Code and burning through my 5-hour limit way faster than I could explain.
+I was paying for Claude Code and burning through my 5-hour limit in 1.5 hours.
 
 I'd open a new session, send a few messages, ask Claude to help me with one task — and somehow I was already at 40% of my window. It didn't match the work I was actually doing.
 
