@@ -89,16 +89,15 @@ macu --json             # raw JSON for scripting
 
 The agent reads the output, follows the action plan, edits your configs, then runs `macu` again to verify savings.
 
-### Optional: `cu` - Claude Code Usage Monitor
+### Live Usage Monitors (`cu` / `cou`)
 
-Live subscription limits with colored bars. Ships with macu, works on macOS.
+If you want to see how much of your plan window you've already burned through and when it resets, install the companion repo [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors):
 
 ```bash
-cu                      # 5h/weekly utilization + reset timers
-cu --json               # JSON output
+curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash
 ```
 
-Requires: macOS, Python 3, Claude Code logged in. See [installation guide](./docs/guide/installation.md#step-5-optional--claude-usage-monitor-cu).
+That ships two commands: `cu` (Claude Code subscription usage) and `cou` (Codex CLI subscription usage). Both print colored bars and reset timers in under a second. `macu` is about historical waste; `ai-usage-monitors` is about live state - use both if you pay for AI coding subscriptions.
 
 ---
 
@@ -188,15 +187,14 @@ The root cause: every API call to Anthropic includes ALL tool definitions in the
 | `macu --source X` | Only analyze one source (`opencode`, `claude`, `codex`)    |
 | `macu --json`     | Raw JSON output (pipe to `jq`, feed to scripts)            |
 | `macu --help`     | Show help                                                  |
-| `cu`              | Live Claude Code subscription usage (macOS only)           |
-| `cu --json`       | Claude usage as JSON                                       |
+
+For live subscription usage monitors (`cu` for Claude Code, `cou` for Codex CLI), see the companion repo: [ai-usage-monitors](https://github.com/minhvoio/ai-usage-monitors).
 
 ---
 
 ## Requirements
 
-- **Node.js ≥ 18** (for `macu`)
-- **Python 3 + macOS** (for `cu` only - optional)
+- **Node.js ≥ 18**
 - At least one AI tool with usage history
 
 ---

@@ -4,13 +4,11 @@
   "description": "Minimize AI Credit Usage - Analyze tool usage across Claude Code, OpenCode, and Codex to find waste and optimize token spend",
   "type": "module",
   "bin": {
-    "macu": "./bin/macu.mjs",
-    "cu": "./bin/cu"
+    "macu": "./bin/macu.mjs"
   },
   "files": [
     "bin/",
     "src/",
-    "scripts/",
     "LICENSE",
     "README.md"
   ],

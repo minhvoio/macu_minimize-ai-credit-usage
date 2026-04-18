@@ -1,9 +1,0 @@
-#!/bin/bash
-# cu - Show Claude Code usage limits (colored bars + reset timers)
-# Wrapper around scripts/claude_usage.py
-# Requires: macOS, Python 3, curl, Claude Code logged in
-
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
-
-exec python3 "$REPO_DIR/scripts/claude_usage.py" "$@"

@@ -34,36 +34,56 @@ which macu    # Should return a path
 macu --help   # Should show usage
 ```
 
-Both commands (`macu` and `cu`) are installed together from the same package.
+### Step 4: Ask the User Which AI Tool They Use
 
-### Step 4: Test
+Before testing, ask the user:
 
-```bash
-macu --source opencode --days 30
-```
+> Which AI coding tool are you using? (Claude Code / OpenCode / Codex)
 
-This should produce a full analysis if OpenCode data exists on the machine.
+Their answer determines the next step. Pick the matching flag:
 
-### Step 5: Optional - Claude Usage Monitor (cu)
+- Claude Code → `--source claude`
+- OpenCode → `--source opencode`
+- Codex → `--source codex`
 
-The `cu` command shows live Claude Code subscription usage (5h/weekly limits with colored bars).
+### Step 5: Test With Their Source
 
-**Requirements:**
-- macOS only (reads credentials from macOS Keychain)
-- Claude Code must be logged in (`claude` CLI)
-- Python 3 and curl must be available
-
-**Test:**
+Run macu scoped to the source they told you:
 
 ```bash
-cu
+macu --source <their-source> --days 30
 ```
 
-Expected output: colored bars showing 5h limit, weekly limit, and reset timers.
+This should produce a full analysis if data exists for that source. If you see "No AI tool data found", the user needs to run their AI tool at least once so there is usage history to read.
 
-If `cu` fails with "No Claude Code credentials found", the user needs to log in to Claude Code first.
+### Step 6: Offer the Live Subscription Monitors (optional)
 
-### Step 6: Understand What's Available
+If the user picked Claude Code or Codex in Step 4, and they want to see live subscription usage (how much of the 5h / weekly window they've burned through, when it resets), point them at the companion repo. Skip this step entirely for OpenCode users.
+
+Tell them:
+
+> macu analyzes your tool-call history. If you also want live subscription usage bars, install the companion package `ai-usage-monitors` - it ships `cu` (Claude Code) and `cou` (Codex CLI).
+
+**Install it:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash
+```
+
+Or:
+
+```bash
+npm install -g github:minhvoio/ai-usage-monitors
+```
+
+**After install, they run:**
+
+- Claude Code user → `cu` (macOS only, reads Keychain, Claude Code must be logged in)
+- Codex user → `cou` (macOS or Linux, reads `~/.codex/auth.json`, Codex CLI must be logged in)
+
+Both require Python 3 and curl. Do not keep retrying inside macu if they fail - direct the user to the companion repo's README for troubleshooting: https://github.com/minhvoio/ai-usage-monitors
+
+### Step 7: Understand What's Available
 
 | Command | What it does |
 |---------|-------------|
@@ -73,8 +93,6 @@ If `cu` fails with "No Claude Code credentials found", the user needs to log in 
 | `macu --source claude` | Claude Code data only |
 | `macu --source codex` | Codex data only |
 | `macu --json` | Raw JSON output for scripting |
-| `cu` | Live Claude Code usage limits (macOS only) |
-| `cu --json` | Usage limits as JSON |
 
 ### Data Sources (auto-detected)
 
@@ -92,6 +110,5 @@ No configuration needed. `macu` probes all locations and uses whatever is availa
 |---------|----------|
 | `macu: command not found` | Check that npm global bin is in PATH: `npm config get prefix` then add `<prefix>/bin` to PATH |
 | `No AI tool data found` | Run an AI tool first (OpenCode, Claude Code, or Codex) so there is usage data to analyze |
-| `cu: No Claude Code credentials` | Log in to Claude Code: run `claude` and complete login |
-| `cu: Python 3 not found` | Install Python 3: `brew install python3` (macOS) |
 | `better-sqlite3 build fails` | Install build tools: `xcode-select --install` (macOS) or `apt install build-essential` (Linux) |
+| `cu`/`cou` issues | See https://github.com/minhvoio/ai-usage-monitors |

@@ -56,37 +56,12 @@ else
   exit 1
 fi
 
-# ── Optional: Claude Usage (cu) ───────────────────────
+# ── Companion repo: ai-usage-monitors ─────────────────
 
 echo ""
-echo -e "${BOLD}  Optional: Claude Code Usage Monitor${RESET}"
-echo -e "${DIM}  The ${RESET}cu${DIM} command shows live Claude Code subscription limits${RESET}"
-echo -e "${DIM}  (5h/weekly utilization with colored bars and reset timers).${RESET}"
-echo -e "${DIM}  Requires: macOS + Claude Code logged in.${RESET}"
-echo ""
-
-if [ "$(uname)" != "Darwin" ]; then
-  echo -e "${DIM}  Skipped - cu requires macOS (detected: $(uname)).${RESET}"
-else
-  if command -v cu &>/dev/null; then
-    echo -e "${GREEN}  ✓${RESET} cu already installed → $(which cu)"
-  else
-    # cu is bundled with macu, should already be linked
-    if command -v cu &>/dev/null; then
-      echo -e "${GREEN}  ✓${RESET} cu installed → $(which cu)"
-    else
-      echo -e "${YELLOW}  ℹ${RESET} cu is bundled with macu but may need Python 3 + curl."
-      echo -e "${DIM}    Test it: cu${RESET}"
-    fi
-  fi
-
-  # Verify Python 3 for cu
-  if command -v python3 &>/dev/null; then
-    echo -e "${GREEN}  ✓${RESET} Python 3 available (needed by cu)"
-  else
-    echo -e "${YELLOW}  ⚠${RESET} Python 3 not found - cu will not work without it."
-  fi
-fi
+echo -e "${DIM}  Want live subscription usage monitors (cu / cou)?${RESET}"
+echo -e "${DIM}  They now live in the companion repo ai-usage-monitors:${RESET}"
+echo -e "${DIM}    curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash${RESET}"
 
 # ── Done ──────────────────────────────────────────────
 
@@ -96,5 +71,4 @@ echo -e "${GREEN}${BOLD}  Done.${RESET} Run:"
 echo ""
 echo -e "    ${CYAN}macu${RESET}          Analyze tool usage + optimize tokens"
 echo -e "    ${CYAN}macu --days 30${RESET} Last 30 days only"
-echo -e "    ${CYAN}cu${RESET}            Claude Code usage limits (macOS)"
 echo ""
