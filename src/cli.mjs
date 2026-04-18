@@ -37,7 +37,7 @@ export async function run(argv) {
 
   if (detected.length === 0) {
     console.error(
-      'No AI tool data found. macu supports: OpenCode, Claude Code, Codex.\n' +
+      'No AI tool data found. macu supports: Claude Code, OpenCode, Codex.\n' +
       'Run one of these tools first so there is usage data to analyze.'
     );
     process.exit(1);

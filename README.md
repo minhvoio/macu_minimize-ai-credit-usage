@@ -2,13 +2,13 @@
 
 ## My story
 
-I was paying for Claude Code and burning through my 5-hour limit in 1.5 hours.
+I was paying for Claude Code and burning through my 5-hour limit in just 1.5 hours.
 
 I'd open a new session, send a few messages, ask Claude to help me with one task - and somehow I was already at 40% of my window. It didn't match the work I was actually doing.
 
-So I pulled my usage data. 50 days. 830 sessions. **33,000 tool calls.** And I found it.
+So I asked Claude to figure out what was happening. It pulled 50 days of usage data - 830 sessions, **33,000 tool calls** - and broke down the token cost of every single message I sent.
 
-Every single message I sent was carrying **95 MCP tool definitions** in the request body. Linear. Slack. LSP. Custom plugins I'd installed months ago and forgotten. All 95 of them, loaded fresh into the context on every single request.
+That's when I saw it. Every message was carrying **95 MCP tool definitions** in the request body. Linear. Slack. LSP. Custom plugins I'd installed months ago and forgotten. All 95 of them, loaded fresh into the context on every single request.
 
 But when I counted what I actually used? **35 tools.** The other 60 were dead weight - adding ~9,000 tokens of overhead to every message before I even typed a word.
 
@@ -49,7 +49,7 @@ If you have zero MCP plugins installed, this tool has nothing to find.
 
 ### For LLM Agents
 
-Paste this to your agent (Claude Code, OpenCode, Codex, Cursor, etc.):
+Paste this to your agent (Claude Code, OpenCode, etc.):
 
 ```
 Install macu and run it to optimize my tool usage. Follow the guide:
@@ -104,14 +104,14 @@ Requires: macOS, Python 3, Claude Code logged in. See [installation guide](./doc
 
 ## What It Shows
 
-| Section | What you get |
-|---------|-------------|
-| **Tool Frequency** | Bar chart of most-called tools with call counts and percentages |
-| **Activity Timeline** | Table with first/last seen dates for every tool |
-| **Unused Tools** | Tools with 0 calls - pure dead weight in your context |
-| **Rarely Used Tools** | Less than ~1 call/week - candidates for removal |
-| **Recommendations** | Prioritized actions: which tools/plugins/MCP servers to cut |
-| **Before vs After** | Token savings chart showing impact of applying recommendations |
+| Section               | What you get                                                    |
+| --------------------- | --------------------------------------------------------------- |
+| **Tool Frequency**    | Bar chart of most-called tools with call counts and percentages |
+| **Activity Timeline** | Table with first/last seen dates for every tool                 |
+| **Unused Tools**      | Tools with 0 calls - pure dead weight in your context           |
+| **Rarely Used Tools** | Less than ~1 call/week - candidates for removal                 |
+| **Recommendations**   | Prioritized actions: which tools/plugins/MCP servers to cut     |
+| **Before vs After**   | Token savings chart showing impact of applying recommendations  |
 
 ```
   Before   ████████████████████████████████████████  28,500 tok (95 tools)
@@ -123,11 +123,11 @@ Requires: macOS, Python 3, Claude Code logged in. See [installation guide](./doc
 
 ## Supported Sources
 
-| Source | Format | Auto-detected Location |
-|--------|--------|----------------------|
-| **OpenCode** | SQLite | `~/.local/share/opencode/opencode.db` |
-| **Claude Code** | JSONL | `~/.claude/projects/`, `~/.claude/transcripts/`, `~/.config/claude/projects/` |
-| **Codex** | JSONL + SQLite | `~/.codex/sessions/`, `~/.codex/state_5.sqlite` |
+| Source          | Format         | Auto-detected Location                                                        |
+| --------------- | -------------- | ----------------------------------------------------------------------------- |
+| **Claude Code** | JSONL          | `~/.claude/projects/`, `~/.claude/transcripts/`, `~/.config/claude/projects/` |
+| **OpenCode**    | SQLite         | `~/.local/share/opencode/opencode.db`                                         |
+| **Codex**       | JSONL + SQLite | `~/.codex/sessions/`, `~/.codex/state_5.sqlite`                               |
 
 Zero configuration. `macu` probes all locations and merges whatever it finds.
 
@@ -181,15 +181,15 @@ The root cause: every API call to Anthropic includes ALL tool definitions in the
 
 ## Commands
 
-| Command | Description |
-|---------|------------|
-| `macu` | Full tool usage analysis with optimization recommendations |
-| `macu --days N` | Analyze last N days (default: 180) |
-| `macu --source X` | Only analyze one source (`opencode`, `claude`, `codex`) |
-| `macu --json` | Raw JSON output (pipe to `jq`, feed to scripts) |
-| `macu --help` | Show help |
-| `cu` | Live Claude Code subscription usage (macOS only) |
-| `cu --json` | Claude usage as JSON |
+| Command           | Description                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `macu`            | Full tool usage analysis with optimization recommendations |
+| `macu --days N`   | Analyze last N days (default: 180)                         |
+| `macu --source X` | Only analyze one source (`opencode`, `claude`, `codex`)    |
+| `macu --json`     | Raw JSON output (pipe to `jq`, feed to scripts)            |
+| `macu --help`     | Show help                                                  |
+| `cu`              | Live Claude Code subscription usage (macOS only)           |
+| `cu --json`       | Claude usage as JSON                                       |
 
 ---
 

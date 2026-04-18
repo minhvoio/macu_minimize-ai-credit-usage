@@ -51,9 +51,10 @@ export function loadCodex(meta, days) {
   if (meta.stateDb) {
     try {
       const db = new Database(meta.stateDb, { readonly: true, fileMustExist: true });
+      const cutoffSec = Math.floor(cutoffMs / 1000);
       const row = db.prepare(
         'SELECT COUNT(*) as cnt FROM threads WHERE created_at >= ?'
-      ).get(new Date(cutoffMs).toISOString());
+      ).get(cutoffSec);
       dbSessionCount = row?.cnt || 0;
       db.close();
     } catch { /* state DB optional */ }

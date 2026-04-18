@@ -19,6 +19,7 @@ const MAX_RARE_THRESHOLD = 26;
 // Trade-off: a hypothetical MCP server named "lsp" or "session" would be
 // silently ignored. Acceptable because these names are reserved by host tools.
 const BUILTIN_PREFIXES = new Set([
+  // OpenCode / Claude Code
   'lsp',        // lsp_diagnostics, lsp_rename, lsp_symbols, ...
   'session',    // session_read, session_info, session_list, ...
   'ast',        // ast_grep_search, ast_grep_replace
@@ -29,6 +30,13 @@ const BUILTIN_PREFIXES = new Set([
   'look',       // look_at
   'interactive', // interactive_bash
   'apply',      // apply_patch (Claude Code built-in)
+  // Codex
+  'shell',      // shell_command
+  'exec',       // exec_command
+  'update',     // update_plan
+  'wait',       // wait_agent
+  'spawn',      // spawn_agent
+  'write',      // write_stdin (Codex) - note: OpenCode "write" has no underscore
 ]);
 
 export function analyze(data, days) {
@@ -103,9 +111,8 @@ export function analyze(data, days) {
 function detectRemovableMcpServers(allTools, rareThreshold) {
   const servers = {};
   for (const t of allTools) {
-    const sep = t.name.indexOf('_');
-    if (sep === -1) continue;
-    const prefix = t.name.slice(0, sep);
+    const prefix = extractMcpPrefix(t.name);
+    if (!prefix) continue;
     if (BUILTIN_PREFIXES.has(prefix)) continue;
     if (!servers[prefix]) {
       servers[prefix] = { name: prefix, tools: [], totalCalls: 0, activeCount: 0, removableTools: [] };
@@ -130,6 +137,25 @@ function detectRemovableMcpServers(allTools, rareThreshold) {
     .sort((a, b) => b.removableTools.length - a.removableTools.length);
 
   return { fullyRemovable, partial };
+}
+
+/**
+ * Extract MCP server prefix from a tool name.
+ * Handles two conventions:
+ *   - Single underscore: "linear-granthelp_get_ticket" → "linear-granthelp"
+ *   - Codex double underscore: "mcp__omx_code_intel__lsp_diagnostics" → "omx_code_intel"
+ * Returns null for tools with no underscore (orphans like "bash", "shell").
+ */
+function extractMcpPrefix(name) {
+  // Codex convention: mcp__<server>__<tool>
+  if (name.startsWith('mcp__')) {
+    const rest = name.slice(5); // after "mcp__"
+    const sep = rest.indexOf('__');
+    return sep !== -1 ? rest.slice(0, sep) : null;
+  }
+  // OpenCode / Claude Code convention: <server>_<tool>
+  const sep = name.indexOf('_');
+  return sep !== -1 ? name.slice(0, sep) : null;
 }
 
 function detectConfigPaths() {
