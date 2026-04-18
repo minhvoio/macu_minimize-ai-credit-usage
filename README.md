@@ -70,6 +70,16 @@ curl -fsSL https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-us
 
 Or: `npm install -g macu`
 
+The installer will ask if you also want the companion tool [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors) (`cu` / `cou` for live subscription usage bars). Skip the prompt:
+
+```bash
+# Install macu only (no prompt)
+curl -fsSL https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/install.sh | bash -s -- --no-companion
+
+# Install both at once (no prompt)
+curl -fsSL https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/install.sh | bash -s -- --yes
+```
+
 > **Note:** `macu` is designed to run inside an AI coding session. You can run it from your terminal to see the analysis, but the optimization step (editing configs, removing MCP servers) is meant to be executed by your AI agent. If you ran `macu` outside a session, paste the output to your agent and ask it to apply the action plan.
 
 ---
@@ -89,15 +99,25 @@ macu --json             # raw JSON for scripting
 
 The agent reads the output, follows the action plan, edits your configs, then runs `macu` again to verify savings.
 
-### Live Usage Monitors (`cu` / `cou`)
+### Companion: Live Usage Monitors (`cu` / `cou`)
 
-If you want to see how much of your plan window you've already burned through and when it resets, install the companion repo [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors):
+`macu` finds **historical waste** (unused MCP tools bloating every request). The companion [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors) shows **live usage** (how much of your 5h/weekly window you've already burned through, with reset timers).
+
+```
+  $ cu                                    $ cou
+  Claude Code Usage  -  now               Codex CLI Usage  (team / premium)
+  ───────────────────────────             ───────────────────────────
+  5h limit   ██████░░░░  51.0%            5h window  ██░░░░░░░░   8.5%
+  Weekly     ████░░░░░░  21.0%            7d window  █░░░░░░░░░   3.2%
+```
+
+Install it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash
 ```
 
-That ships two commands: `cu` (Claude Code subscription usage) and `cou` (Codex CLI subscription usage). Both print colored bars and reset timers in under a second. `macu` is about historical waste; `ai-usage-monitors` is about live state - use both if you pay for AI coding subscriptions.
+Or let macu's installer offer it at the end - it prompts `Install cu + cou too? [Y/n]` by default. Use both tools if you pay for Claude Code or Codex subscriptions.
 
 ---
 
