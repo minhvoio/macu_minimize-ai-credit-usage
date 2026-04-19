@@ -45,6 +45,84 @@ If you have zero MCP plugins installed, this tool has nothing to find.
 
 ---
 
+## What you'll see
+
+Run `macu` and it prints the whole picture in one pass. This is real output from my own setup (120 tools, 88 days, ~52k messages):
+
+**Summary:**
+
+```
+  Source    OpenCode, Claude Code, Codex
+  Period    Jan 22, 2026 - Apr 19, 2026 (88 days)
+  Sessions  2,223
+  Messages  51,964
+  Tool calls  92,218 across 120 unique tools
+```
+
+**Most used tools** (the ones earning their keep):
+
+```
+  read                      ████████████████████████████████████████   25,933 (28.1%)
+  bash                      ██████████████████████████████░░░░░░░░░░   19,266 (20.9%)
+  edit                      █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░    8,421 (9.1%)
+  grep                      ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░    7,682 (8.3%)
+  todowrite                 ███████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    4,353 (4.7%)
+  glob                      █████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    3,415 (3.7%)
+  ... 114 more tools
+```
+
+**Unused & rarely used** (candidates for removal):
+
+```
+  54 tools with <13 calls:
+    • linear-granthelp_list_issues    (12 calls, idle 24d)
+    • linear-granthelp_list_teams     (12 calls, idle 23d)
+    • mcp__mcp-dblp__add_bibtex_entry  (8 calls, idle 30d)
+    • linear_save_issue                (6 calls, idle 38d)
+    • update_plan                      (5 calls, idle 87d)
+    • ... and 49 more
+```
+
+**Projected token overhead** (what this is costing you per message):
+
+```
+  Now       ████████████████████████████████████████  36,000 tok - 120 tools loaded
+  Optimized ██████████████████████░░░░░░░░░░░░░░░░░░  19,800 tok -  66 tools loaded
+
+  → Estimated savings: ~16,200 tokens per message (45% reduction)
+
+  Applied retroactively to your 51,964 messages over 88 days,
+  this would have saved roughly 841.9M tokens.
+```
+
+**Action plan** (your AI agent can execute this in the same session):
+
+```
+  1. MCP servers to remove entirely (100% unused/rare)
+     ✗ "stitch"     - 2 tools,  2 total calls
+     ✗ "vercel"     - 1 tool,   4 total calls
+
+  2. Individual tools to remove (keep the server, drop these)
+     ⚠ "linear-granthelp" - 5 active, 10 removable
+        • linear-granthelp_list_issues (12 calls)
+        • linear-granthelp_list_teams  (12 calls)
+        ... and 8 more
+     ⚠ "mcp-dblp" - 2 active, 4 removable
+
+  3. Config files to edit
+     → OpenCode:    ~/.config/opencode/opencode.json
+     → Claude Code: ~/.claude/settings.json
+
+  4. Verify
+     Run macu again after cleanup to confirm savings
+
+  Expected: 120 → 66 tools, ~16,200 tokens saved per message (45%)
+```
+
+When run in an interactive terminal, `macu` also offers to copy a ready-to-paste optimization prompt to your clipboard so you can hand it straight to your AI agent.
+
+---
+
 ## Installation
 
 ### For LLM Agents
@@ -98,45 +176,6 @@ macu --json             # raw JSON for scripting
 ```
 
 The agent reads the output, follows the action plan, edits your configs, then runs `macu` again to verify savings.
-
-### Companion: Live Usage Monitors (`cu` / `cou`)
-
-`macu` finds **historical waste** (unused MCP tools bloating every request). The companion [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors) shows **live usage** (how much of your 5h/weekly window you've already burned through, with reset timers).
-
-```
-  $ cu                                    $ cou
-  Claude Code Usage  -  now               Codex CLI Usage  (team / premium)
-  ───────────────────────────             ───────────────────────────
-  5h limit   ██████░░░░  51.0%            5h window  ██░░░░░░░░   8.5%
-  Weekly     ████░░░░░░  21.0%            7d window  █░░░░░░░░░   3.2%
-```
-
-Install it:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash
-```
-
-Or let macu's installer offer it at the end - it prompts `Install cu + cou too? [Y/n]` by default. Use both tools if you pay for Claude Code or Codex subscriptions.
-
----
-
-## What It Shows
-
-| Section               | What you get                                                    |
-| --------------------- | --------------------------------------------------------------- |
-| **Tool Frequency**    | Bar chart of most-called tools with call counts and percentages |
-| **Activity Timeline** | Table with first/last seen dates for every tool                 |
-| **Unused Tools**      | Tools with 0 calls - pure dead weight in your context           |
-| **Rarely Used Tools** | Less than ~1 call/week - candidates for removal                 |
-| **Recommendations**   | Prioritized actions: which tools/plugins/MCP servers to cut     |
-| **Before vs After**   | Token savings chart showing impact of applying recommendations  |
-
-```
-  Before   ████████████████████████████████████████  28,500 tok (95 tools)
-  After    ██████████████████████████                19,500 tok (35 tools)
-  Savings  ██████████████                             9,000 tok (32%)
-```
 
 ---
 
@@ -208,7 +247,24 @@ The root cause: every API call to Anthropic includes ALL tool definitions in the
 | `macu --json`     | Raw JSON output (pipe to `jq`, feed to scripts)            |
 | `macu --help`     | Show help                                                  |
 
-For live subscription usage monitors (`cu` for Claude Code, `cou` for Codex CLI), see the companion repo: [ai-usage-monitors](https://github.com/minhvoio/ai-usage-monitors).
+---
+
+## Companion: live usage monitors (`cu` / `cou`)
+
+`macu` finds **historical waste** (unused MCP tools bloating every request). Once you're done cleaning up, you'll want to track **live usage** too: how much of your 5-hour / weekly window you've already burned through, with reset timers.
+
+That's what the companion repo [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors) does:
+
+- `cu` - Claude Code subscription usage (5h limit, weekly limit)
+- `cou` - Codex CLI usage (5h window, 7d window, team / premium tiers)
+
+Install it standalone:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/minhvoio/ai-usage-monitors/main/install.sh | bash
+```
+
+Or let macu's installer offer it at the end - it prompts `Install cu + cou too? [Y/n]` by default. Use both tools if you pay for Claude Code or Codex subscriptions.
 
 ---
 
