@@ -38,17 +38,17 @@ macu --help   # Should show usage
 
 ### Step 4: Ask the User Which AI Tool They Use
 
-Before testing, ask the user:
+Before running the analysis, ask the user:
 
 > Which AI coding tool are you using? (Claude Code / OpenCode / Codex)
 
-Their answer determines the next step. Pick the matching flag:
+Their answer determines the source flag:
 
-- Claude Code → `--source claude`
-- OpenCode → `--source opencode`
-- Codex → `--source codex`
+- Claude Code -> `--source claude`
+- OpenCode -> `--source opencode`
+- Codex -> `--source codex`
 
-### Step 5: Test With Their Source
+### Step 5: Run the Analysis
 
 Run macu scoped to the source they told you:
 
@@ -56,9 +56,63 @@ Run macu scoped to the source they told you:
 macu --source <their-source> --days 30
 ```
 
-This should produce a full analysis if data exists for that source. If you see "No AI tool data found", the user needs to run their AI tool at least once so there is usage history to read.
+This produces a full analysis if data exists for that source. If you see "No AI tool data found", the user needs to run their AI tool at least once so there is usage history to read.
 
-### Step 6: Offer the Live Subscription Monitors (optional)
+### Step 6: Present the Action Plan to the User
+
+**Do NOT take any action yet.** Read the macu output and present a clear summary to the user. Extract and show them:
+
+1. **How many tools they have** and how many are actually used
+2. **MCP servers to remove entirely** (100% unused or rarely used) - list each server name and how many tools it has
+3. **Individual tools to remove** (keep the server, drop specific tools) - list each with call count
+4. **Projected savings** - tokens per message before vs after, percentage reduction
+5. **Which config files will be edited** - show the exact file paths
+
+Format it as a concise summary they can scan in 10 seconds. Example:
+
+> **Your setup**: 101 tools loaded, 47 actively used, 54 candidates for removal.
+>
+> **MCP servers to remove entirely:**
+> - `stitch` (2 tools, 2 total calls in 30 days)
+> - `mcp-dblp` (6 tools, used once on a single day)
+>
+> **Individual tools to remove** (keep the server, drop these):
+> - `linear-granthelp`: 7 active tools, 12 removable (e.g. list_projects: 2 calls, list_users: 3 calls)
+>
+> **Projected savings**: 30,300 tok/message -> 14,100 tok/message (54 tools removed, ~53% reduction)
+>
+> **Config files that will be edited:**
+> - `~/.claude/settings.json`
+
+### Step 7: Ask What to Do
+
+Do NOT proceed without explicit approval. Ask:
+
+> What would you like me to do?
+> 1. **Apply all recommendations** - remove all unused servers + individual tools
+> 2. **Remove full servers only** - just the MCP servers that are 100% unused
+> 3. **Let me pick** - I'll tell you which ones to remove
+> 4. **Skip** - just wanted to see the analysis, don't change anything
+
+Wait for the user's answer. If they pick option 3, list each server and tool group and let them confirm individually.
+
+### Step 8: Execute the Approved Changes
+
+Only after the user approves:
+
+1. **Back up the config files first** - copy each config to a `.bak` file before editing
+2. **Edit the configs** - remove the approved MCP servers and/or individual tool entries
+3. **Run macu again** to verify the changes took effect:
+
+```bash
+macu --source <their-source> --days 30
+```
+
+4. **Show the before/after comparison** - confirm the tool count dropped and projected savings match expectations
+
+If something went wrong, restore from the `.bak` files.
+
+### Step 9: Offer the Live Subscription Monitors (optional)
 
 If the user picked Claude Code or Codex in Step 4, and they want to see live subscription usage (how much of the 5h / weekly window they've burned through, when it resets), point them at the companion repo. Skip this step entirely for OpenCode users.
 
@@ -80,12 +134,12 @@ npm install -g github:minhvoio/ai-usage-monitors
 
 **After install, they run:**
 
-- Claude Code user → `cu` (macOS only, reads Keychain, Claude Code must be logged in)
-- Codex user → `cou` (macOS or Linux, reads `~/.codex/auth.json`, Codex CLI must be logged in)
+- Claude Code user -> `cu` (macOS only, reads Keychain, Claude Code must be logged in)
+- Codex user -> `cou` (macOS or Linux, reads `~/.codex/auth.json`, Codex CLI must be logged in)
 
 Both require Python 3 and curl. Do not keep retrying inside macu if they fail - direct the user to the companion repo's README for troubleshooting: https://github.com/minhvoio/ai-usage-monitors
 
-### Step 7: Understand What's Available
+### Step 10: Understand What's Available
 
 | Command | What it does |
 |---------|-------------|
