@@ -52,11 +52,11 @@ echo -e "${GREEN}  ✓${RESET} npm $(npm -v)"
 echo ""
 echo -e "${BOLD}  Installing macu...${RESET}"
 
-npm install -g macu 2>/dev/null || {
+npm install -g @minagents/macu 2>/dev/null || {
   echo -e "${YELLOW}  npm registry install failed. Installing from GitHub...${RESET}"
   npm install -g github:minhvoio/macu_minimize-ai-credit-usage 2>/dev/null || {
     echo -e "${RED}  ✗ Installation failed.${RESET}"
-    echo -e "${DIM}  Try manually: npm install -g github:minhvoio/macu_minimize-ai-credit-usage${RESET}"
+    echo -e "${DIM}  Try manually: npm install -g @minagents/macu${RESET}"
     exit 1
   }
 }

@@ -18,14 +18,16 @@ If Node.js is missing or too old, stop and tell the user.
 ### Step 2: Install macu
 
 ```bash
-npm install -g macu
+npm install -g @minagents/macu
 ```
 
-If the npm registry install fails (package not yet published), install from GitHub:
+If the npm registry install fails, install from GitHub:
 
 ```bash
 npm install -g github:minhvoio/macu_minimize-ai-credit-usage
 ```
+
+> **Warning:** Do NOT use `bun install -g` from a GitHub URL. It creates `~/package.json` and `~/bun.lock` which break workspace detection in other tools (Next.js, Turborepo, etc.).
 
 ### Step 3: Verify Installation
 

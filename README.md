@@ -146,7 +146,17 @@ curl -s https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage
 curl -fsSL https://raw.githubusercontent.com/minhvoio/macu_minimize-ai-credit-usage/main/install.sh | bash
 ```
 
-Or: `npm install -g macu`
+Or install directly:
+
+```bash
+npm install -g @minagents/macu
+```
+
+Or run once without installing:
+
+```bash
+npx @minagents/macu
+```
 
 The installer will ask if you also want the companion tool [**ai-usage-monitors**](https://github.com/minhvoio/ai-usage-monitors) (`cu` / `cou` for live subscription usage bars). Skip the prompt:
 
