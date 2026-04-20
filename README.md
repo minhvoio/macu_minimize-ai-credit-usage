@@ -95,29 +95,51 @@ Run `macu` and it prints the whole picture in one pass. This is real output from
   this would have saved roughly 841.9M tokens.
 ```
 
-**Action plan** (your AI agent can execute this in the same session):
+**Action plan** - grouped by config file, with the exact JSON to merge:
 
 ```
-  1. MCP servers to remove entirely (100% unused/rare)
-     ✗ "stitch"     - 2 tools,  2 total calls
-     ✗ "vercel"     - 1 tool,   4 total calls
+  1. Deny specific MCP tools in opencode.json
+     → Edit ~/.config/opencode/opencode.json
 
-  2. Individual tools to remove (keep the server, drop these)
-     ⚠ "linear-granthelp" - 5 active, 10 removable
-        • linear-granthelp_list_issues (12 calls)
-        • linear-granthelp_list_teams  (12 calls)
-        ... and 8 more
-     ⚠ "mcp-dblp" - 2 active, 4 removable
+       {
+         "tools": {
+           "linear-granthelp_list_users": false,
+           "linear-granthelp_get_my_issues": false,
+           "linear-granthelp_list_projects": false
+         }
+       }
 
-  3. Config files to edit
-     → OpenCode:    ~/.config/opencode/opencode.json
-     → Claude Code: ~/.claude/settings.json
+     Covers 6 tools, 22 calls
 
-  4. Verify
-     Run macu again after cleanup to confirm savings
+  2. Deny Claude Code plugin MCP in settings.json
+     → Edit ~/.claude/settings.json
 
-  Expected: 120 → 66 tools, ~16,200 tokens saved per message (45%)
+       {
+         "permissions": {
+           "deny": ["mcp__oh-my-claudecode__*"]
+         }
+       }
+
+     Covers 8 tools, 22 calls
+
+  3. Disable plugin tools via oh-my-openagent.json
+     → Edit ~/.config/opencode/oh-my-openagent.json
+
+       {
+         "disabled_tools": ["lsp_goto_definition", "lsp_symbols"]
+       }
+
+  4. Historical data (no action needed)
+     • "linear-sw"  - 4 tools, 20 historical calls
+     • "mcp-dblp"   - 4 tools, 16 historical calls
+     • "vercel"     - 1 tool,   4 historical calls
+
+  5. Verify: run macu again after cleanup
+
+  Expected: 117 → 69 tools, ~14,400 tokens saved per message (41%)
 ```
+
+Each action is grouped by the config file that actually declares the tool. macu reads your `opencode.json`, `oh-my-openagent.json`, and `~/.claude/settings.json` to emit the correct JSON syntax for that platform - whole-server `enabled: false` when 100% of a server's tools are removable, per-tool `"tools": { ... }` deny when the server still has active tools you want to keep.
 
 When run in an interactive terminal, `macu` also offers to copy a ready-to-paste optimization prompt to your clipboard so you can hand it straight to your AI agent.
 

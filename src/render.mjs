@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { platform } from 'os';
 import chalk from 'chalk';
 import Table from 'cli-table3';
+import { buildRemovalSnippet, groupByConfigTarget } from './config-reader.mjs';
 
 const BAR_WIDTH = 40;
 const TOP_N = 15;
@@ -112,10 +113,11 @@ function renderTimeline(result) {
       chalk.dim('Last Seen'),
       chalk.dim('Calls'),
       chalk.dim('Avg/Day'),
-      chalk.dim('Source'),
+      chalk.dim('Config'),
+      chalk.dim('Client'),
     ],
     style: { head: [], border: ['dim'] },
-    colWidths: [26, 14, 14, 10, 10, 14],
+    colWidths: [26, 14, 14, 10, 10, 18, 13],
   });
 
   for (const tool of result.tools) {
@@ -128,13 +130,17 @@ function renderTimeline(result) {
     else if (tool.calls < result.rareThreshold) callsStr = chalk.yellow(fmt(tool.calls));
     else callsStr = chalk.green(fmt(tool.calls));
 
+    const configLabel = formatConfigLabel(tool.configSource);
+    const clientLabel = (tool.sources || []).join(', ');
+
     table.push([
       tool.name.length > 24 ? tool.name.slice(0, 23) + '…' : tool.name,
       fmtDate(tool.firstSeen),
       fmtDate(tool.lastSeen),
       callsStr,
       avgPerDay,
-      tool.sources.join(', '),
+      configLabel,
+      clientLabel,
     ]);
   }
 
@@ -260,7 +266,7 @@ function renderSavingsChart(result) {
 // ── Next Steps (CTA) ─────────────────────────────────────
 
 function renderNextSteps(result) {
-  const { overhead, mcpServers, configPaths } = result;
+  const { overhead } = result;
   const removableCount = result.groups.unused.length + result.groups.rarelyUsed.length;
 
   if (removableCount === 0) {
@@ -278,63 +284,84 @@ function renderNextSteps(result) {
   console.log(chalk.dim('  🖥  Terminal: paste this output to your AI agent to apply the optimization.'));
   console.log('');
 
+  // Build the list of removable tools (unused + rarelyUsed), each paired with its ConfigSource.
+  // Refine opencode-mcp entries: if the server has any active tools remaining, switch
+  // from whole-server disable to per-tool deny (so we don't nuke active tools).
+  // New tools are intentionally excluded: not enough data yet.
+  const removableTools = [
+    ...result.groups.unused,
+    ...result.groups.rarelyUsed,
+  ].filter((t) => t.configSource);
+
+  // Build set of server keys that STILL have at least one active or new tool.
+  // These should use per-tool deny, not whole-server disable.
+  const activeServersWithTools = new Set();
+  for (const t of result.tools) {
+    if (!t.configSource || !t.configSource.serverKey) continue;
+    const isActive = t.calls >= result.rareThreshold || (t.isNew && t.calls > 0);
+    if (isActive) activeServersWithTools.add(t.configSource.serverKey);
+  }
+
+  const removables = removableTools.map((t) => {
+    const src = t.configSource;
+    // Only rewrite opencode-mcp to per-tool deny when the server has other active tools.
+    if (src.kind === 'opencode-mcp' && activeServersWithTools.has(src.serverKey)) {
+      return {
+        tool: t,
+        source: { ...src, removalFormat: 'opencode-tools' },
+      };
+    }
+    return { tool: t, source: src };
+  });
+
+  const grouped = groupByConfigTarget(removables);
+
   let step = 1;
 
-  const { fullyRemovable = [], partial = [] } = mcpServers || {};
+  // One step per (configFile, removalFormat) group. This is the source-aware breakdown.
+  for (const group of grouped.removable) {
+    step = renderRemovalGroup(group, step);
+  }
 
-  if (fullyRemovable.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('MCP servers to remove entirely')} ${chalk.dim('(100% unused/rare)')}`);
-    for (const srv of fullyRemovable.slice(0, 8)) {
-      const example = srv.tools[0] ? chalk.dim(` (e.g. ${srv.tools[0]})`) : '';
-      console.log(`     ${chalk.red('✗')} ${chalk.white(`"${srv.name}"`)}${example} ${chalk.dim(`- ${srv.tools.length} tool${srv.tools.length === 1 ? '' : 's'}, ${srv.totalCalls} total calls`)}`);
+  // Historical data: tools whose source is no longer declared anywhere.
+  // Informational only - no action needed.
+  if (grouped.removed.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Historical data')} ${chalk.dim('(no action needed)')}`);
+    console.log(chalk.dim('     These tools appear in your usage history but their MCP server is'));
+    console.log(chalk.dim('     no longer declared in any config file. They will not load anymore.'));
+    console.log('');
+    const byServer = new Map();
+    for (const { tool, source } of grouped.removed) {
+      const key = source.serverKey || tool.name;
+      if (!byServer.has(key)) byServer.set(key, []);
+      byServer.get(key).push(tool);
+    }
+    for (const [serverKey, tools] of byServer) {
+      const totalCalls = tools.reduce((n, t) => n + t.calls, 0);
+      console.log(chalk.dim(`     • "${serverKey}" - ${tools.length} tool${tools.length === 1 ? '' : 's'}, ${totalCalls} historical call${totalCalls === 1 ? '' : 's'}`));
     }
     step++;
     console.log('');
   }
 
-  if (partial.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Individual tools to remove')} ${chalk.dim('(keep the server, drop these)')}`);
-    for (const srv of partial.slice(0, 6)) {
-      const kept = srv.activeCount;
-      const example = srv.tools[0] ? chalk.dim(` (e.g. ${srv.tools[0]})`) : '';
-      console.log(`     ${chalk.yellow('⚠')} ${chalk.white(`"${srv.name}"`)}${example} ${chalk.dim(`- ${kept} active, ${srv.removableTools.length} removable`)}`);
-      for (const t of srv.removableTools.slice(0, 4)) {
-        console.log(chalk.dim(`        • ${t.name} (${t.calls} call${t.calls === 1 ? '' : 's'})`));
-      }
-      if (srv.removableTools.length > 4) {
-        console.log(chalk.dim(`        ... and ${srv.removableTools.length - 4} more`));
-      }
+  // Tools we could not classify. Rare.
+  if (grouped.unknown.length > 0) {
+    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Unknown source')} ${chalk.dim('(manual investigation)')}`);
+    console.log(chalk.dim('     macu could not determine which config file declares these. Try:'));
+    console.log(chalk.dim('     grep the tool name in ~/.config/opencode/ and ~/.claude/ to locate it.'));
+    for (const { tool } of grouped.unknown.slice(0, 6)) {
+      console.log(`     ${chalk.yellow('?')} ${chalk.dim(tool.name)} ${chalk.dim(`(${tool.calls} calls)`)}`);
+    }
+    if (grouped.unknown.length > 6) {
+      console.log(chalk.dim(`     ... and ${grouped.unknown.length - 6} more`));
     }
     step++;
     console.log('');
   }
 
-  if (result.groups.unused.length > 0) {
-    const orphanUnused = result.groups.unused.filter((t) => t.name.indexOf('_') === -1);
-    if (orphanUnused.length > 0) {
-      console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(`Other unused tools (0 calls)`)}`);
-      for (const t of orphanUnused.slice(0, 6)) {
-        console.log(`     ${chalk.red('✗')} ${chalk.dim(t.name)}`);
-      }
-      if (orphanUnused.length > 6) {
-        console.log(chalk.dim(`     ... and ${orphanUnused.length - 6} more`));
-      }
-      step++;
-      console.log('');
-    }
-  }
-
-  if (configPaths.length > 0) {
-    console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Config files to edit')}`);
-    for (const cp of configPaths) {
-      console.log(`     ${chalk.cyan('→')} ${cp.source}: ${chalk.white(cp.path)}`);
-    }
-    step++;
-    console.log('');
-  }
-
+  // Verify step: always last.
   console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold('Verify')}`);
-  console.log(chalk.dim('     Run ') + chalk.cyan('macu') + chalk.dim(' again after cleanup to confirm savings'));
+  console.log(chalk.dim('     Run ') + chalk.cyan('macu') + chalk.dim(' again after cleanup to confirm savings.'));
   console.log('');
 
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
@@ -344,6 +371,132 @@ function renderNextSteps(result) {
     chalk.bold.green(`~${fmt(overhead.savingsPerMsg)} tokens saved per message (${pct}%)`)
   );
   console.log('');
+}
+
+/**
+ * Render a single removal group: one config file + one removal format = one step.
+ * Emits the exact JSON snippet to merge and the list of tools covered.
+ */
+function renderRemovalGroup(group, step) {
+  const headline = describeRemovalAction(group);
+  const fileLabel = group.configFileLabel || group.configFile || 'config file';
+
+  console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(headline)}`);
+  console.log(`     ${chalk.cyan('→')} Edit ${chalk.white(fileLabel)}`);
+  console.log('');
+
+  // Emit exact JSON snippet. For per-tool formats, collect all tool names in this group.
+  const snippet = buildGroupSnippet(group);
+  if (snippet) {
+    for (const line of snippet.split('\n')) {
+      console.log(chalk.dim('       ') + chalk.white(line));
+    }
+    console.log('');
+  }
+
+  // List tools covered by this group. Cap to keep output scannable.
+  const tools = group.entries.map((e) => e.tool);
+  const totalCalls = tools.reduce((n, t) => n + t.calls, 0);
+  console.log(chalk.dim(`     Covers ${tools.length} tool${tools.length === 1 ? '' : 's'}, ${totalCalls} call${totalCalls === 1 ? '' : 's'}:`));
+  for (const t of tools.slice(0, 8)) {
+    const callStr = t.calls === 0 ? chalk.red('0') : chalk.yellow(String(t.calls));
+    console.log(chalk.dim(`       • ${t.name} (${callStr}${chalk.dim(' calls)')}`));
+  }
+  if (tools.length > 8) {
+    console.log(chalk.dim(`       ... and ${tools.length - 8} more`));
+  }
+  console.log('');
+  return step + 1;
+}
+
+/**
+ * Human-readable headline for a removal group, specific to the removal format.
+ */
+function describeRemovalAction(group) {
+  switch (group.removalFormat) {
+    case 'mcp-entry':
+      return 'Disable entire MCP server in opencode.json';
+    case 'opencode-tools':
+      return 'Deny specific MCP tools in opencode.json';
+    case 'disabled_mcps':
+      return 'Disable built-in MCP via oh-my-openagent.json';
+    case 'disabled_tools':
+      return 'Disable plugin tools via oh-my-openagent.json';
+    case 'permissions.deny':
+      return 'Deny Claude Code plugin MCP in settings.json';
+    default:
+      return 'Edit config';
+  }
+}
+
+/**
+ * Build the exact JSON snippet for this group.
+ *
+ * For per-server formats (mcp-entry, disabled_mcps, permissions.deny) we may have
+ * multiple servers in the same group (e.g. two opencode.json MCPs to disable at once).
+ * We merge them into one snippet to give the agent a single atomic edit.
+ */
+function buildGroupSnippet(group) {
+  const entries = group.entries;
+  if (entries.length === 0) return null;
+
+  switch (group.removalFormat) {
+    case 'mcp-entry': {
+      const mcp = {};
+      for (const e of entries) {
+        if (e.source.serverKey) mcp[e.source.serverKey] = { enabled: false };
+      }
+      return JSON.stringify({ mcp }, null, 2);
+    }
+    case 'opencode-tools': {
+      const tools = {};
+      for (const e of entries) tools[e.tool.name] = false;
+      const sorted = {};
+      for (const k of Object.keys(tools).sort()) sorted[k] = false;
+      return JSON.stringify({ tools: sorted }, null, 2);
+    }
+    case 'disabled_mcps': {
+      const names = new Set();
+      for (const e of entries) if (e.source.serverKey) names.add(e.source.serverKey);
+      return JSON.stringify({ disabled_mcps: [...names].sort() }, null, 2);
+    }
+    case 'disabled_tools': {
+      const names = new Set();
+      for (const e of entries) names.add(e.tool.name);
+      return JSON.stringify({ disabled_tools: [...names].sort() }, null, 2);
+    }
+    case 'permissions.deny': {
+      const deny = new Set();
+      for (const e of entries) {
+        if (e.source.serverKey) deny.add(`mcp__${e.source.serverKey}__*`);
+      }
+      return JSON.stringify(
+        { permissions: { deny: [...deny].sort() } },
+        null,
+        2,
+      );
+    }
+    default:
+      // Fall back to single-entry snippet from config-reader.
+      return buildRemovalSnippet(entries[0].source, [entries[0].tool.name]);
+  }
+}
+
+/**
+ * Short label for the Config column in the timeline table. Kept tight to fit 18 chars.
+ */
+function formatConfigLabel(source) {
+  if (!source) return '';
+  switch (source.kind) {
+    case 'opencode-mcp':      return chalk.cyan('opencode.json');
+    case 'oh-my-builtin-mcp': return chalk.cyan('oh-my-openagent');
+    case 'oh-my-plugin-tool': return chalk.cyan('oh-my-openagent');
+    case 'claude-plugin-mcp': return chalk.cyan('claude settings');
+    case 'host-native':       return chalk.dim('built-in');
+    case 'removed':           return chalk.red('removed');
+    case 'unknown':           return chalk.yellow('unknown');
+    default:                  return chalk.dim(source.label || '');
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -401,34 +554,44 @@ function promptCopyIfTTY(result) {
 }
 
 function buildAgentPrompt(result) {
-  const { overhead, mcpServers, configPaths } = result;
+  const { overhead } = result;
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
 
-  let prompt = `I ran macu (Minimize AI Credit Usage) and it found ${overhead.before.tools - overhead.after.tools} tools that can be removed to save ~${fmt(overhead.savingsPerMsg)} tokens per message (${pct}% reduction).\n\n`;
+  // Build the same source-aware groups used by the Action Plan rendering.
+  const removables = [
+    ...result.groups.unused,
+    ...result.groups.rarelyUsed,
+  ]
+    .filter((t) => t.configSource)
+    .map((t) => ({ tool: t, source: t.configSource }));
 
-  prompt += `Please apply these optimizations:\n\n`;
+  const grouped = groupByConfigTarget(removables);
 
-  if (mcpServers.length > 0) {
-    prompt += `Remove these MCP servers (low/zero usage):\n`;
-    for (const srv of mcpServers) {
-      prompt += `- "${srv.name}" (${srv.tools.length} tools, ${srv.totalCalls} total calls)\n`;
-    }
-    prompt += `\n`;
+  let prompt = `I ran macu (Minimize AI Credit Usage). It found ${overhead.before.tools - overhead.after.tools} tools that can be disabled to save ~${fmt(overhead.savingsPerMsg)} tokens per message (${pct}% reduction).\n\n`;
+  prompt += `Apply the edits below. Each block shows the exact config file and JSON to merge.\n`;
+  prompt += `Before editing: back up the file. After editing: run \`macu\` to verify.\n\n`;
+
+  if (grouped.removable.length === 0) {
+    prompt += `(No per-file edits needed - tools are all built-in or already removed.)\n`;
   }
 
-  if (configPaths.length > 0) {
-    prompt += `Config files to edit:\n`;
-    for (const cp of configPaths) {
-      if (cp.path.startsWith('/')) {
-        prompt += `- ${cp.source}: ${cp.path}\n`;
-      }
-    }
-    prompt += `\n`;
+  for (const group of grouped.removable) {
+    prompt += `=== ${describeRemovalAction(group)} ===\n`;
+    prompt += `File: ${group.configFileLabel || group.configFile}\n`;
+    prompt += `Merge this JSON into the file (keep existing fields, add/extend arrays):\n`;
+    const snippet = buildGroupSnippet(group);
+    if (snippet) prompt += snippet + '\n';
+    const tools = group.entries.map((e) => e.tool);
+    const totalCalls = tools.reduce((n, t) => n + t.calls, 0);
+    prompt += `Covers ${tools.length} tool(s), ${totalCalls} call(s): ${tools.map((t) => t.name).join(', ')}\n\n`;
   }
 
-  prompt += `After removing, run \`macu\` again to verify the savings.\n`;
+  if (grouped.removed.length > 0) {
+    const serverKeys = new Set(grouped.removed.map((e) => e.source.serverKey).filter(Boolean));
+    prompt += `Historical (no action needed): ${[...serverKeys].join(', ')} - these MCP servers are no longer declared in any config.\n\n`;
+  }
+
   prompt += `Expected result: ${overhead.before.tools} → ${overhead.after.tools} tools, ~${fmt(overhead.savingsPerMsg)} tokens saved per message.`;
-
   return prompt;
 }
 

@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { loadConfigContext, resolveConfigSource } from './config-reader.mjs';
 
 // Empirically derived: 113,531 chars / 95 tools / ~4 chars per token ≈ 299
 const TOKENS_PER_TOOL_DEF = 300;
@@ -89,6 +90,14 @@ export function analyze(data, days) {
   const mcpServers = detectRemovableMcpServers(sorted, rareThreshold);
   const configPaths = detectConfigPaths();
 
+  // Enrich each tool with its ConfigSource (which config file declares it, how to disable it).
+  // This runs after all other analysis so the shape of existing fields is untouched.
+  const configCtx = loadConfigContext();
+  for (const t of sorted) {
+    const rawPrefix = extractMcpPrefix(t.name);
+    t.configSource = resolveConfigSource(t.name, rawPrefix, configCtx);
+  }
+
   return {
     tools: sorted,
     totalCalls,
@@ -145,8 +154,13 @@ function detectRemovableMcpServers(allTools, rareThreshold) {
  *   - Single underscore: "linear-granthelp_get_ticket" → "linear-granthelp"
  *   - Codex double underscore: "mcp__omx_code_intel__lsp_diagnostics" → "omx_code_intel"
  * Returns null for tools with no underscore (orphans like "bash", "shell").
+ *
+ * Exported so the config-reader can use the same canonical prefix extraction.
+ * NOTE: some MCP names contain underscores (e.g. "grep_app"). This function
+ * still splits at the first underscore; callers should use refinePrefix() from
+ * config-reader.mjs to re-join known multi-word names.
  */
-function extractMcpPrefix(name) {
+export function extractMcpPrefix(name) {
   // Codex convention: mcp__<server>__<tool>
   if (name.startsWith('mcp__')) {
     const rest = name.slice(5); // after "mcp__"
