@@ -71,17 +71,19 @@ Run `macu` and it prints the whole picture in one pass. This is real output from
   ... 114 more tools
 ```
 
-**Unused & rarely used** (candidates for removal):
+**Unused & rarely used** (with confidence badges driven by idle-days):
 
 ```
   54 tools with <13 calls:
-    • linear-granthelp_list_issues    (12 calls, idle 24d)
-    • linear-granthelp_list_teams     (12 calls, idle 23d)
-    • mcp__mcp-dblp__add_bibtex_entry  (8 calls, idle 30d)
-    • linear_save_issue                (6 calls, idle 38d)
-    • update_plan                      (5 calls, idle 87d)
+    • linear-granthelp_list_users         (6 calls) [high (cold, 26d idle)]
+    • linear-granthelp_get_my_issues      (6 calls) [LOW (recent, 5d idle)]
+    • linear-granthelp_get_user           (2 calls) [high (very cold, 37d idle)]
+    • mcp__mcp-dblp__add_bibtex_entry     (8 calls) [high (cold, 30d idle)]
+    • update_plan                         (5 calls) [high (very cold, 87d idle)]
     • ... and 49 more
 ```
+
+Confidence comes from idle-days, not call count. A tool called 6 times 4 days ago is riskier to disable than a tool called 6 times 30 days ago - macu surfaces that directly so you (or your agent) don't disable something you'll miss tomorrow.
 
 **Projected token overhead** (what this is costing you per message):
 
@@ -95,51 +97,63 @@ Run `macu` and it prints the whole picture in one pass. This is real output from
   this would have saved roughly 841.9M tokens.
 ```
 
-**Action plan** - grouped by config file, with the exact JSON to merge:
+**Action plan** - grouped by config file, with server health, Conservative/Aggressive tiers, and the exact JSON to merge:
 
 ```
   1. Deny specific MCP tools in opencode.json
      → Edit ~/.config/opencode/opencode.json
+     Server "linear-granthelp" · 594 total calls · 9/15 active
 
+     ▸ Conservative (safe: high-confidence only)
+       Saves ~1,500 tokens/message (5 tools)
        {
          "tools": {
+           "linear-granthelp_get_user": false,
+           "linear-granthelp_list_issue_statuses": false,
+           "linear-granthelp_list_projects": false,
            "linear-granthelp_list_users": false,
-           "linear-granthelp_get_my_issues": false,
-           "linear-granthelp_list_projects": false
+           "linear-granthelp_save_comment": false
          }
        }
 
-     Covers 6 tools, 22 calls
+     ▸ Aggressive (include recent / medium-confidence flags)
+       Saves ~1,800 tokens/message (6 tools)
+       { ... 5 above + "linear-granthelp_get_my_issues": false }
+
+     Covers 6 tools, 22 calls:
+       • linear-granthelp_list_users     (6 calls) [high (cold, 26d idle)]
+       • linear-granthelp_get_my_issues  (6 calls) [LOW (recent, 5d idle)]
+       ...
 
   2. Deny Claude Code plugin MCP in settings.json
      → Edit ~/.claude/settings.json
+     Server "oh-my-claudecode" · 180 total calls · 5/13 active
 
-       {
-         "permissions": {
-           "deny": ["mcp__oh-my-claudecode__*"]
-         }
-       }
+     ⚠ this removal format disables the whole server. Tiering does not apply -
+       accepting this snippet also disables recently-used tools in the same server.
 
-     Covers 8 tools, 22 calls
+     Saves ~2,400 tokens/message (8 tools)
+       { "permissions": { "deny": ["mcp__oh-my-claudecode__*"] } }
 
   3. Disable plugin tools via oh-my-openagent.json
      → Edit ~/.config/opencode/oh-my-openagent.json
 
-       {
-         "disabled_tools": ["lsp_goto_definition", "lsp_symbols"]
-       }
+     ▸ Conservative ... ▸ Aggressive ...
 
   4. Historical data (no action needed)
      • "linear-sw"  - 4 tools, 20 historical calls
      • "mcp-dblp"   - 4 tools, 16 historical calls
-     • "vercel"     - 1 tool,   4 historical calls
 
   5. Verify: run macu again after cleanup
 
   Expected: 117 → 69 tools, ~14,400 tokens saved per message (41%)
 ```
 
-Each action is grouped by the config file that actually declares the tool. macu reads your `opencode.json`, `oh-my-openagent.json`, and `~/.claude/settings.json` to emit the correct JSON syntax for that platform - whole-server `enabled: false` when 100% of a server's tools are removable, per-tool `"tools": { ... }` deny when the server still has active tools you want to keep.
+Each action carries three pieces of context an agent can judge at a glance:
+
+1. **Server health** - "594 total calls · 9/15 active" tells you the server is healthy and the flagged tools are a minority. If it said "all tools unused", you'd just disable the whole server.
+2. **Confidence tiers** - Conservative drops only tools that have been idle long enough to be safe. Aggressive adds the rest. Whole-server wildcard denies skip tiering because the snippet is the same either way.
+3. **Exact JSON** - merge-ready snippets for `opencode.json`, `oh-my-openagent.json`, or `~/.claude/settings.json`.
 
 When run in an interactive terminal, `macu` also offers to copy a ready-to-paste optimization prompt to your clipboard so you can hand it straight to your AI agent.
 

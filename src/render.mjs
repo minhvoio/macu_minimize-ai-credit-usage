@@ -7,6 +7,69 @@ import { buildRemovalSnippet, groupByConfigTarget } from './config-reader.mjs';
 const BAR_WIDTH = 40;
 const TOP_N = 15;
 
+// ── Confidence tiers ────────────────────────────────────────
+//
+// Idle-days drives confidence. A cold tool (3+ weeks idle) is safer to disable
+// than a recently used one, regardless of call count. Unused tools are always
+// high confidence since they have no signal to contradict removal.
+//
+// Thresholds were picked to match typical dev cadence: weekly usage stays out
+// of "cold", monthly usage enters "cold", quarterly or never-in-last-month
+// enters "very cold", anything used within the last week is kept LOW to force
+// a second look before disabling.
+const CONFIDENCE_COLD_DAYS = 21;
+const CONFIDENCE_VERY_COLD_DAYS = 35;
+const CONFIDENCE_RECENT_DAYS = 7;
+
+function classifyConfidence(tool) {
+  if (tool.calls === 0) {
+    return { tier: 'high-very-cold', label: 'high (never used)' };
+  }
+  const idle = tool.daysSinceLastUsed ?? 0;
+  if (idle >= CONFIDENCE_VERY_COLD_DAYS) return { tier: 'high-very-cold', label: `high (very cold, ${idle}d idle)` };
+  if (idle >= CONFIDENCE_COLD_DAYS) return { tier: 'high-cold', label: `high (cold, ${idle}d idle)` };
+  if (idle <= CONFIDENCE_RECENT_DAYS) return { tier: 'low-recent', label: `LOW (recent, ${idle}d idle)` };
+  return { tier: 'medium', label: `medium (${idle}d idle)` };
+}
+
+function isHighConfidence(tier) {
+  return tier === 'high-cold' || tier === 'high-very-cold';
+}
+
+// Whole-server removal formats emit ONE snippet that wipes the whole server,
+// regardless of which tools were selected. Tiering is meaningless here because
+// the snippet is identical in Conservative and Aggressive modes. Per-tool
+// formats (opencode-tools, disabled_tools) genuinely benefit from tiering.
+function isWholeServerFormat(removalFormat) {
+  return (
+    removalFormat === 'mcp-entry' ||
+    removalFormat === 'disabled_mcps' ||
+    removalFormat === 'permissions.deny'
+  );
+}
+
+function colorConfidence(label, tier) {
+  if (tier.startsWith('high')) return chalk.green(label);
+  if (tier === 'low-recent') return chalk.red(label);
+  return chalk.yellow(label);
+}
+
+// Per-server health snapshot. Used to render the "[Server foo - N calls, X active]"
+// context line above a removal group, so the reader sees immediately that flagged
+// tools live inside a server that is still actively used (or not).
+function computeServerHealth(result, serverKey) {
+  let totalCalls = 0;
+  let activeTools = 0;
+  let totalTools = 0;
+  for (const t of result.tools) {
+    if (!t.configSource || t.configSource.serverKey !== serverKey) continue;
+    totalTools++;
+    totalCalls += t.calls;
+    if (t.calls >= result.rareThreshold || (t.isNew && t.calls > 0)) activeTools++;
+  }
+  return { totalCalls, activeTools, totalTools, flaggedTools: totalTools - activeTools };
+}
+
 export function render(result, sourceNames) {
   console.log('');
   renderHeader();
@@ -159,7 +222,9 @@ function renderUnused(result) {
   if (unused.length > 0) {
     console.log(chalk.red(`  ${unused.length} tool${unused.length > 1 ? 's' : ''} with 0 calls:`));
     for (const t of unused) {
-      console.log(chalk.dim(`    • ${t.name}`));
+      const conf = classifyConfidence(t);
+      const badge = ' ' + colorConfidence(`[${conf.label}]`, conf.tier);
+      console.log(chalk.dim(`    • ${t.name}`) + badge);
     }
     console.log('');
   }
@@ -167,10 +232,13 @@ function renderUnused(result) {
   if (rarelyUsed.length > 0) {
     console.log(chalk.yellow(`  ${rarelyUsed.length} tool${rarelyUsed.length > 1 ? 's' : ''} with <${result.rareThreshold} calls:`));
     for (const t of rarelyUsed) {
-      const age = t.daysSinceLastUsed > 14
-        ? chalk.dim(` -- idle ${t.daysSinceLastUsed}d`)
-        : '';
-      console.log(chalk.dim(`    • ${t.name}`) + chalk.dim(` (${t.calls} calls, last used ${fmtDate(t.lastSeen)})`) + age);
+      const conf = classifyConfidence(t);
+      const badge = ' ' + colorConfidence(`[${conf.label}]`, conf.tier);
+      console.log(
+        chalk.dim(`    • ${t.name}`) +
+        chalk.dim(` (${t.calls} calls, last used ${fmtDate(t.lastSeen)})`) +
+        badge,
+      );
     }
     console.log('');
   }
@@ -320,7 +388,7 @@ function renderNextSteps(result) {
 
   // One step per (configFile, removalFormat) group. This is the source-aware breakdown.
   for (const group of grouped.removable) {
-    step = renderRemovalGroup(group, step);
+    step = renderRemovalGroup(group, step, result);
   }
 
   // Historical data: tools whose source is no longer declared anywhere.
@@ -375,38 +443,169 @@ function renderNextSteps(result) {
 
 /**
  * Render a single removal group: one config file + one removal format = one step.
- * Emits the exact JSON snippet to merge and the list of tools covered.
+ *
+ * v1.2.0 additions:
+ *   - Server-context header: when the group targets a single MCP server, show
+ *     server health (total calls, active tools) so the reader instantly sees
+ *     whether disabling the flagged tools leaves the server intact or empties it.
+ *   - Confidence badges per tool (high cold / low recent / medium) driven by
+ *     idle-days, not call count.
+ *   - Two-tier snippets (Conservative / Aggressive) when the group contains a
+ *     mix of confidence levels. All-high-confidence groups render a single snippet.
  */
-function renderRemovalGroup(group, step) {
+function renderRemovalGroup(group, step, result) {
   const headline = describeRemovalAction(group);
   const fileLabel = group.configFileLabel || group.configFile || 'config file';
 
   console.log(`  ${chalk.bold(`${step}.`)} ${chalk.bold(headline)}`);
   console.log(`     ${chalk.cyan('→')} Edit ${chalk.white(fileLabel)}`);
+
+  // Server-context header. Only meaningful when the group targets one specific
+  // server (opencode-mcp / oh-my-builtin-mcp / claude-plugin-mcp entries sharing
+  // a serverKey). Plugin-tool groups (disabled_tools) have no server key.
+  const serverLine = buildServerContextLine(group, result);
+  if (serverLine) {
+    console.log(`     ${serverLine}`);
+  }
   console.log('');
 
-  // Emit exact JSON snippet. For per-tool formats, collect all tool names in this group.
-  const snippet = buildGroupSnippet(group);
-  if (snippet) {
-    for (const line of snippet.split('\n')) {
-      console.log(chalk.dim('       ') + chalk.white(line));
-    }
-    console.log('');
+  // Classify every entry by confidence. Drives tiering + per-tool badges.
+  const classified = group.entries.map((e) => ({
+    ...e,
+    confidence: classifyConfidence(e.tool),
+  }));
+  const highs = classified.filter((e) => isHighConfidence(e.confidence.tier));
+  const mixed = classified.length > highs.length && highs.length > 0;
+
+  // Decide rendering mode:
+  //   - Whole-server formats (wildcard deny, mcp-entry, disabled_mcps) cannot
+  //     be tiered - the snippet is the same either way. Fall through to single.
+  //   - All entries high confidence OR only one entry → single snippet
+  //   - Mixed (some high, some low/medium) → two-tier snippets
+  //   - No high confidence (all recent / all medium) → single snippet with warning
+  const tokensPerToolDef = result.overhead.tokensPerToolDef;
+  const canTier = !isWholeServerFormat(group.removalFormat);
+
+  if (mixed && canTier) {
+    const conservativeEntries = highs;
+    const aggressiveEntries = classified;
+    renderTieredSnippets(group, conservativeEntries, aggressiveEntries, tokensPerToolDef);
+  } else {
+    renderSingleSnippet(group, classified, tokensPerToolDef);
   }
 
-  // List tools covered by this group. Cap to keep output scannable.
-  const tools = group.entries.map((e) => e.tool);
-  const totalCalls = tools.reduce((n, t) => n + t.calls, 0);
-  console.log(chalk.dim(`     Covers ${tools.length} tool${tools.length === 1 ? '' : 's'}, ${totalCalls} call${totalCalls === 1 ? '' : 's'}:`));
-  for (const t of tools.slice(0, 8)) {
+  // Per-tool breakdown with confidence badge. Cap for readability.
+  const totalCalls = classified.reduce((n, e) => n + e.tool.calls, 0);
+  console.log(chalk.dim(`     Covers ${classified.length} tool${classified.length === 1 ? '' : 's'}, ${totalCalls} call${totalCalls === 1 ? '' : 's'}:`));
+  for (const e of classified.slice(0, 10)) {
+    const t = e.tool;
     const callStr = t.calls === 0 ? chalk.red('0') : chalk.yellow(String(t.calls));
-    console.log(chalk.dim(`       • ${t.name} (${callStr}${chalk.dim(' calls)')}`));
+    const badge = colorConfidence(`[${e.confidence.label}]`, e.confidence.tier);
+    console.log(chalk.dim(`       • ${t.name} (${callStr}${chalk.dim(' calls)')} `) + badge);
   }
-  if (tools.length > 8) {
-    console.log(chalk.dim(`       ... and ${tools.length - 8} more`));
+  if (classified.length > 10) {
+    console.log(chalk.dim(`       ... and ${classified.length - 10} more`));
   }
   console.log('');
   return step + 1;
+}
+
+/**
+ * Emit one snippet covering all entries. Used when all flags share the same
+ * confidence tier (usually all high) or when there's only one entry.
+ */
+function renderSingleSnippet(group, classified, tokensPerToolDef) {
+  if (classified.length === 0) return;
+
+  const lowRecent = classified.filter((e) => e.confidence.tier === 'low-recent');
+  const allRecent = lowRecent.length === classified.length && classified.length > 0;
+  const wholeServer = isWholeServerFormat(group.removalFormat);
+  const mixedConfidence =
+    wholeServer &&
+    classified.some((e) => isHighConfidence(e.confidence.tier)) &&
+    classified.some((e) => !isHighConfidence(e.confidence.tier));
+
+  if (allRecent) {
+    console.log(`     ${chalk.red('⚠')} ${chalk.dim('all flagged tools were used recently - double-check before disabling')}`);
+    console.log('');
+  } else if (mixedConfidence) {
+    // Wildcard deny wipes the whole server. Be explicit that tiering is not
+    // available here: it's all or nothing, including recently-used tools.
+    console.log(`     ${chalk.yellow('⚠')} ${chalk.dim('this removal format disables the whole server. Tiering does not apply -')}`);
+    console.log(`       ${chalk.dim('accepting this snippet also disables recently-used tools in the same server.')}`);
+    console.log('');
+  }
+  const snippet = buildGroupSnippet({ ...group, entries: classified.map(e => ({ tool: e.tool, source: e.source })) });
+  if (snippet) {
+    const savings = classified.length * tokensPerToolDef;
+    console.log(chalk.dim(`     ${chalk.bold.green(`Saves ~${fmt(savings)} tokens/message`)} ${chalk.dim(`(${classified.length} tool${classified.length === 1 ? '' : 's'})`)}`));
+    for (const line of snippet.split('\n')) {
+      console.log(chalk.dim('       ') + chalk.cyan(line));
+    }
+    console.log('');
+  }
+}
+
+/**
+ * Emit two snippets: Conservative (only high-confidence flags) and Aggressive
+ * (all flags). Each with its own savings number and tool count, so the reader
+ * can pick a tier without doing math.
+ */
+function renderTieredSnippets(group, conservativeEntries, aggressiveEntries, tokensPerToolDef) {
+  const consCount = conservativeEntries.length;
+  const aggCount = aggressiveEntries.length;
+  const consSavings = consCount * tokensPerToolDef;
+  const aggSavings = aggCount * tokensPerToolDef;
+
+  // Conservative block
+  console.log(`     ${chalk.bold.green('▸ Conservative')} ${chalk.dim(`(safe: high-confidence only)`)}`);
+  console.log(chalk.dim(`       ${chalk.bold.green(`Saves ~${fmt(consSavings)} tokens/message`)} ${chalk.dim(`(${consCount} tool${consCount === 1 ? '' : 's'})`)}`));
+  const consSnippet = buildGroupSnippet({ ...group, entries: conservativeEntries.map(e => ({ tool: e.tool, source: e.source })) });
+  if (consSnippet) {
+    for (const line of consSnippet.split('\n')) {
+      console.log(chalk.dim('       ') + chalk.cyan(line));
+    }
+  }
+  console.log('');
+
+  // Aggressive block
+  console.log(`     ${chalk.bold.yellow('▸ Aggressive')} ${chalk.dim(`(include recent / medium-confidence flags)`)}`);
+  console.log(chalk.dim(`       ${chalk.bold.green(`Saves ~${fmt(aggSavings)} tokens/message`)} ${chalk.dim(`(${aggCount} tool${aggCount === 1 ? '' : 's'})`)}`));
+  const aggSnippet = buildGroupSnippet({ ...group, entries: aggressiveEntries.map(e => ({ tool: e.tool, source: e.source })) });
+  if (aggSnippet) {
+    for (const line of aggSnippet.split('\n')) {
+      console.log(chalk.dim('       ') + chalk.cyan(line));
+    }
+  }
+  console.log('');
+}
+
+/**
+ * Build a one-line server-context string. Returns null when the group has no
+ * single serverKey (plugin-tool groups, mixed-server groups).
+ */
+function buildServerContextLine(group, result) {
+  // Collect unique serverKeys in this group.
+  const serverKeys = new Set();
+  for (const e of group.entries) {
+    if (e.source.serverKey) serverKeys.add(e.source.serverKey);
+  }
+  if (serverKeys.size !== 1) {
+    // disabled_tools groups (plugin-tool) have no serverKey, and we don't want
+    // to show multi-server context for mixed opencode.json per-tool groups.
+    return null;
+  }
+  const [serverKey] = serverKeys;
+  const health = computeServerHealth(result, serverKey);
+  const healthState = health.activeTools === 0
+    ? chalk.red('all tools unused')
+    : chalk.green(`${health.activeTools}/${health.totalTools} active`);
+  return (
+    chalk.dim('Server ') +
+    chalk.white(`"${serverKey}"`) +
+    chalk.dim(` · ${fmt(health.totalCalls)} total calls · `) +
+    healthState
+  );
 }
 
 /**
@@ -556,19 +755,34 @@ function promptCopyIfTTY(result) {
 function buildAgentPrompt(result) {
   const { overhead } = result;
   const pct = Math.round((overhead.savingsPerMsg / overhead.before.tokensPerMsg) * 100);
+  const tokensPerToolDef = overhead.tokensPerToolDef;
 
   // Build the same source-aware groups used by the Action Plan rendering.
-  const removables = [
+  const rawRemovables = [
     ...result.groups.unused,
     ...result.groups.rarelyUsed,
-  ]
-    .filter((t) => t.configSource)
-    .map((t) => ({ tool: t, source: t.configSource }));
+  ].filter((t) => t.configSource);
+
+  // Mirror the per-tool vs whole-server decision from renderNextSteps so the
+  // clipboard prompt matches the on-screen Action Plan exactly.
+  const activeServersWithTools = new Set();
+  for (const t of result.tools) {
+    if (!t.configSource || !t.configSource.serverKey) continue;
+    const isActive = t.calls >= result.rareThreshold || (t.isNew && t.calls > 0);
+    if (isActive) activeServersWithTools.add(t.configSource.serverKey);
+  }
+  const removables = rawRemovables.map((t) => {
+    const src = t.configSource;
+    if (src.kind === 'opencode-mcp' && activeServersWithTools.has(src.serverKey)) {
+      return { tool: t, source: { ...src, removalFormat: 'opencode-tools' } };
+    }
+    return { tool: t, source: src };
+  });
 
   const grouped = groupByConfigTarget(removables);
 
-  let prompt = `I ran macu (Minimize AI Credit Usage). It found ${overhead.before.tools - overhead.after.tools} tools that can be disabled to save ~${fmt(overhead.savingsPerMsg)} tokens per message (${pct}% reduction).\n\n`;
-  prompt += `Apply the edits below. Each block shows the exact config file and JSON to merge.\n`;
+  let prompt = `I ran macu (Minimize AI Credit Usage). It found ${overhead.before.tools - overhead.after.tools} tools that can be disabled to save up to ~${fmt(overhead.savingsPerMsg)} tokens per message (${pct}% reduction).\n\n`;
+  prompt += `For each group below, pick Conservative (safe) or Aggressive (includes recently used tools) and merge the JSON into the listed file. Keep existing fields intact; extend arrays instead of replacing them.\n`;
   prompt += `Before editing: back up the file. After editing: run \`macu\` to verify.\n\n`;
 
   if (grouped.removable.length === 0) {
@@ -578,12 +792,45 @@ function buildAgentPrompt(result) {
   for (const group of grouped.removable) {
     prompt += `=== ${describeRemovalAction(group)} ===\n`;
     prompt += `File: ${group.configFileLabel || group.configFile}\n`;
-    prompt += `Merge this JSON into the file (keep existing fields, add/extend arrays):\n`;
-    const snippet = buildGroupSnippet(group);
-    if (snippet) prompt += snippet + '\n';
-    const tools = group.entries.map((e) => e.tool);
-    const totalCalls = tools.reduce((n, t) => n + t.calls, 0);
-    prompt += `Covers ${tools.length} tool(s), ${totalCalls} call(s): ${tools.map((t) => t.name).join(', ')}\n\n`;
+
+    // Server-context line (only when the group targets a single server).
+    const serverKeys = new Set(group.entries.map((e) => e.source.serverKey).filter(Boolean));
+    if (serverKeys.size === 1) {
+      const [serverKey] = serverKeys;
+      const health = computeServerHealth(result, serverKey);
+      const healthState = health.activeTools === 0 ? 'all tools unused' : `${health.activeTools}/${health.totalTools} active`;
+      prompt += `Server context: "${serverKey}" · ${fmt(health.totalCalls)} total calls · ${healthState}\n`;
+    }
+
+    const classified = group.entries.map((e) => ({ ...e, confidence: classifyConfidence(e.tool) }));
+    const highs = classified.filter((e) => isHighConfidence(e.confidence.tier));
+    const mixed = classified.length > highs.length && highs.length > 0;
+    const canTier = !isWholeServerFormat(group.removalFormat);
+
+    if (mixed && canTier) {
+      const consSnippet = buildGroupSnippet({ ...group, entries: highs.map((e) => ({ tool: e.tool, source: e.source })) });
+      const aggSnippet = buildGroupSnippet({ ...group, entries: classified.map((e) => ({ tool: e.tool, source: e.source })) });
+      prompt += `\n[Conservative] ${highs.length} tool(s), saves ~${fmt(highs.length * tokensPerToolDef)} tokens/msg:\n`;
+      if (consSnippet) prompt += consSnippet + '\n';
+      prompt += `\n[Aggressive] ${classified.length} tool(s), saves ~${fmt(classified.length * tokensPerToolDef)} tokens/msg:\n`;
+      if (aggSnippet) prompt += aggSnippet + '\n';
+    } else {
+      const onlyRecent = classified.every((e) => e.confidence.tier === 'low-recent') && classified.length > 0;
+      if (onlyRecent) {
+        prompt += `WARNING: all flagged tools were used recently. Ask the user before disabling.\n`;
+      } else if (!canTier && mixed) {
+        prompt += `NOTE: this format disables the whole server. Tiering does not apply - applying this also disables recently-used tools in the server.\n`;
+      }
+      const snippet = buildGroupSnippet(group);
+      prompt += `\nSaves ~${fmt(classified.length * tokensPerToolDef)} tokens/msg (${classified.length} tool(s)):\n`;
+      if (snippet) prompt += snippet + '\n';
+    }
+
+    prompt += `\nTools with confidence:\n`;
+    for (const e of classified) {
+      prompt += `  - ${e.tool.name} (${e.tool.calls} calls) [${e.confidence.label}]\n`;
+    }
+    prompt += `\n`;
   }
 
   if (grouped.removed.length > 0) {
@@ -591,7 +838,7 @@ function buildAgentPrompt(result) {
     prompt += `Historical (no action needed): ${[...serverKeys].join(', ')} - these MCP servers are no longer declared in any config.\n\n`;
   }
 
-  prompt += `Expected result: ${overhead.before.tools} → ${overhead.after.tools} tools, ~${fmt(overhead.savingsPerMsg)} tokens saved per message.`;
+  prompt += `Expected result: ${overhead.before.tools} → ${overhead.after.tools} tools, up to ~${fmt(overhead.savingsPerMsg)} tokens saved per message.`;
   return prompt;
 }
 

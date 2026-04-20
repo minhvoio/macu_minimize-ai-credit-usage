@@ -1,6 +1,6 @@
 {
   "name": "@minagents/macu",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Minimize AI Credit Usage - Analyze tool usage across Claude Code, OpenCode, and Codex to find waste and optimize token spend",
   "type": "module",
   "bin": {
