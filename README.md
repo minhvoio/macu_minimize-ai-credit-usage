@@ -159,42 +159,34 @@ When run in an interactive terminal, `macu` also offers to copy a ready-to-paste
 
 ---
 
-## Safety
+## Double-check and backup step
 
-macu is designed around one principle: **it should never silently break your workflow while trying to save you tokens.** Three guardrails make this concrete:
+Before any config gets edited, macu does two things so you can always reverse course.
 
-### 1. Source-aware double-check
+### Double-check: where each tool actually lives
 
 Every flagged tool is traced back to the config file that actually declares it. macu knows the difference between:
 
-- A direct MCP entry in `opencode.json` (remove via `mcp.<name>.enabled: false`)
-- A plugin-native tool from oh-my-openagent (remove via `disabled_tools` in `oh-my-openagent.json`)
-- A Claude Code plugin MCP (remove via `permissions.deny` in `~/.claude/settings.json`)
-- A host-native tool that you can't remove at all (ignored)
-- A historical tool whose server is already gone (reported, but no action needed)
+- A direct MCP entry in `opencode.json` (disable via `mcp.<name>.enabled: false`)
+- A plugin-native tool from oh-my-openagent (disable via `disabled_tools` in `oh-my-openagent.json`)
+- A Claude Code plugin MCP (disable via `permissions.deny` in `~/.claude/settings.json`)
+- A host-native tool that no config can disable (ignored)
+- A historical tool whose server is already gone (reported, no action needed)
 
-If macu can't find where a tool lives, it labels it `removed` or `unknown` and refuses to emit a removal snippet. You never get "delete this" instructions for a tool it doesn't understand.
+If macu can't find where a tool lives, it labels it `removed` or `unknown` and refuses to emit a disable snippet. You never get "disable this" instructions for a tool it doesn't understand.
 
-### 2. Conservative and Aggressive tiers
+Each actionable group also offers Conservative and Aggressive tiers. Each tool carries its own confidence label so you can eyeball the risk: `[high (cold, 26d idle)]` vs `[LOW (recent, 5d idle)]`. Pick the tier that matches your preference, or cherry-pick individual entries from the JSON snippet.
 
-Each actionable group offers two tiers:
+### Backup: so you can wire them back anytime
 
-- **Conservative** - only high-confidence flags. Tools that have been idle long enough and in heavy enough usage history that removal is safe.
-- **Aggressive** - also includes medium-confidence flags (recently used, or younger tools with fewer calls).
-
-Each tool carries its own label so you can eyeball the risk: `[high (cold, 26d idle)]` vs `[LOW (recent, 5d idle)]`. Pick the tier that matches your risk tolerance, or cherry-pick individual entries from the JSON snippet.
-
-### 3. Backups before every edit
-
-When an AI agent applies macu's recommendations following the [installation guide](./docs/guide/installation.md), the flow requires:
+When an AI agent applies macu's recommendations following the [installation guide](./docs/guide/installation.md), the flow is:
 
 1. Back up each config file to `<file>.bak-<timestamp>` before any edit
 2. Apply the approved changes
 3. Verify the result parses as valid JSON
 4. Re-run macu to confirm the expected tool count drop
-5. If anything broke, roll back from the backup
 
-No silent edits. No "oops" moments. If something goes wrong, the `.bak-<timestamp>` file is sitting right next to the original.
+The `.bak-<timestamp>` file sits right next to the original. If you later decide you want a disabled tool back, just open the backup, copy the entry you removed, and merge it back into the live config. No commitment, fully reversible.
 
 ---
 
