@@ -23,7 +23,22 @@ If I had been paying API rates for that overhead, the bill would have been:
 
 On a subscription it doesn't hit your credit card directly - but it IS the reason your plan's window feels smaller than it should. You're shipping $1,000+ of worthless tool definitions inside every plan cycle.
 
-So I built `macu` to find this waste in anyone's setup and make it easy to clean up.
+## Why not just compress the output?
+
+Before building macu I tried the tools that already existed - [rtk](https://github.com/rtk-ai/rtk), [LLMLingua](https://github.com/microsoft/LLMLingua), [Repomix](https://github.com/yamadashy/repomix), and a few prompt-compression approaches. They all work by compressing or truncating what comes *back* from tool calls: shorter `git diff` output, summarized test results, stripped file contents.
+
+The problem is they remove context the AI actually needs:
+
+- `git diff` gets truncated to 31 lines per file. The agent can't see the full change, so it re-fetches the same diff 3 times. The retries cost more tokens than the original output.
+- `cat` / `read` in "aggressive" mode strips function bodies and keeps signatures only. The agent can't debug implementation details it can no longer see.
+- Test output shows "failures only." The agent can't tell which tests already exist when writing a new one.
+- Debugging workflows lose variable states, imports, and adjacent logic. The agent guesses instead of reasons.
+
+These tools reduce token count. But they also reduce the signal the model needs to do its job. You save tokens on every call and lose quality on every answer. For some workflows (clean `git push`, simple `ls`) the tradeoff is fine. For debugging, code review, or anything where context matters - it hurts.
+
+I realized the actual waste wasn't in what tools *return*. It was in what tools *load*. Those 60 unused tool definitions ship in every single message whether you call them or not. Removing them saves tokens without removing a single byte of context the AI would ever use.
+
+So I built `macu` to find that waste and make it easy to clean up - without touching anything the AI needs to see.
 
 ## What `macu` does
 
